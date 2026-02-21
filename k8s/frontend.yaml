@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rentas-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rentas-frontend
+  template:
+    metadata:
+      labels:
+        app: rentas-frontend
+    spec:
+      containers:
+      - name: rentas-frontend
+        image: rentas-frontend:latest # Cambiar por tu registro real
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rentas-frontend
+spec:
+  selector:
+    app: rentas-frontend
+  type: LoadBalancer # O ClusterIP si usas Ingress
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
