@@ -1,0 +1,108 @@
+<template>
+  <div class="p-8">
+    <h1 class="text-2xl font-bold mb-6">Contratos de Servicios</h1>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-6">
+      <button v-for="tab in tabs" :key="tab.key" @click="activeTab = tab.key"
+        :class="activeTab === tab.key ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">{{ tab.label }}</button>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div class="p-4 flex justify-end">
+        <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-gray-800/50">
+          <tr>
+            <th class="px-4 py-3 text-left text-gray-400">ID</th>
+            <th class="px-4 py-3 text-left text-gray-400">Nombre</th>
+            <th v-for="col in extraCols" :key="col" class="px-4 py-3 text-left text-gray-400">{{ col }}</th>
+            <th class="px-4 py-3 text-left text-gray-400">Vencimiento</th>
+            <th class="px-4 py-3 text-left text-gray-400">Periodo</th>
+            <th class="px-4 py-3 text-left text-gray-400">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in items" :key="c.id" class="border-t border-gray-800 hover:bg-gray-800/30">
+            <td class="px-4 py-3">{{ c.id }}</td>
+            <td class="px-4 py-3">{{ c.nombre }}</td>
+            <td v-for="col in extraColKeys" :key="col" class="px-4 py-3">{{ c[col] }}</td>
+            <td class="px-4 py-3">{{ c.fechaVencimiento?.split('T')[0] }}</td>
+            <td class="px-4 py-3">{{ c.periodoEmision }}</td>
+            <td class="px-4 py-3 space-x-2">
+              <button @click="edit(c)" class="text-blue-400">✏️</button>
+              <button @click="remove(c.id)" class="text-red-400">🗑️</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Modal -->
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg">
+        <h2 class="text-lg font-bold mb-4">{{ form.id ? 'Editar' : 'Nuevo' }} Contrato</h2>
+        <form @submit.prevent="save" class="space-y-3">
+          <input v-model="form.nombre" placeholder="Nombre" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          <input v-for="f in extraFields" :key="f.key" v-model="form[f.key]" :placeholder="f.label" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          <input v-model="form.fechaVencimiento" type="date" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          <select v-model="form.periodoEmision" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+            <option v-for="p in periodos" :key="p" :value="p">{{ p }}</option>
+          </select>
+          <div class="flex gap-2 justify-end mt-4">
+            <button type="button" @click="showForm = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
+            <button type="submit" class="px-4 py-2 bg-emerald-600 rounded-lg text-sm font-medium">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import api from '../api'
+
+const tabs = [
+  { key: 'luz', label: '⚡ Luz' },
+  { key: 'agua', label: '💧 Agua' },
+  { key: 'internet', label: '🌐 Internet' },
+]
+const activeTab = ref('luz')
+const items = ref([])
+const showForm = ref(false)
+const form = ref({})
+const periodos = ['Semanal', 'Quincenal', 'Mensual', 'Bimestral', 'Semestral', 'Anual']
+
+const apiPath = computed(() => `/contratos/${activeTab.value}`)
+
+const tabConfig = {
+  luz: { cols: ['RPU', 'Nº Medidor'], colKeys: ['rpu', 'numeroMedidor'], fields: [{ key: 'rpu', label: 'RPU' }, { key: 'numeroMedidor', label: 'Nº Medidor' }] },
+  agua: { cols: ['Nº Inmueble', 'Nº Contrato'], colKeys: ['numeroInmueble', 'numeroContrato'], fields: [{ key: 'numeroInmueble', label: 'Nº Inmueble' }, { key: 'numeroContrato', label: 'Nº Contrato' }] },
+  internet: { cols: ['Nº Contrato', 'Pago OXXO'], colKeys: ['numeroContrato', 'numeroPagoOXXO'], fields: [{ key: 'numeroContrato', label: 'Nº Contrato' }, { key: 'numeroPagoOXXO', label: 'Nº Pago OXXO' }] },
+}
+
+const extraCols = computed(() => tabConfig[activeTab.value].cols)
+const extraColKeys = computed(() => tabConfig[activeTab.value].colKeys)
+const extraFields = computed(() => tabConfig[activeTab.value].fields)
+
+async function load() { items.value = (await api.get(apiPath.value)).data }
+watch(activeTab, load)
+onMounted(load)
+
+function openNew() { form.value = { periodoEmision: 'Mensual' }; showForm.value = true }
+function edit(c) { form.value = { ...c }; showForm.value = true }
+
+async function save() {
+  if (form.value.id) await api.put(`${apiPath.value}/${form.value.id}`, form.value)
+  else await api.post(apiPath.value, form.value)
+  showForm.value = false; await load()
+}
+
+async function remove(id) {
+  if (confirm('¿Eliminar contrato?')) { await api.delete(`${apiPath.value}/${id}`); await load() }
+}
+</script>
