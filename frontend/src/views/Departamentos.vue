@@ -12,8 +12,8 @@
             <th class="px-4 py-3 text-left text-gray-400">Ubicación</th>
             <th class="px-4 py-3 text-left text-gray-400">Clave</th>
             <th class="px-4 py-3 text-left text-gray-400">Descripción</th>
-            <th class="px-4 py-3 text-left text-gray-400">Cuartos</th>
             <th class="px-4 py-3 text-left text-gray-400">Renta</th>
+            <th class="px-4 py-3 text-left text-gray-400">Contrato Luz</th>
             <th class="px-4 py-3 text-left text-gray-400">Inquilino</th>
             <th class="px-4 py-3 text-left text-gray-400">Acciones</th>
           </tr>
@@ -23,8 +23,11 @@
             <td class="px-4 py-3">{{ d.ubicacion?.calle }} {{ d.ubicacion?.numero }}</td>
             <td class="px-4 py-3 font-mono">{{ d.clave }}</td>
             <td class="px-4 py-3">{{ d.descripcion }}</td>
-            <td class="px-4 py-3">{{ d.cuartos }}</td>
             <td class="px-4 py-3">${{ d.montoRenta?.toLocaleString() }}</td>
+            <td class="px-4 py-3">
+              <span v-if="d.contratoLuz" class="text-yellow-400">⚡ {{ d.contratoLuz.nombre }}</span>
+              <span v-else class="text-gray-600">—</span>
+            </td>
             <td class="px-4 py-3">
               <span v-if="d.inquilinoCorreo" class="text-emerald-400">{{ d.inquilinoCorreo }}</span>
               <span v-else class="text-gray-500">Vacío</span>
@@ -55,11 +58,15 @@
             <input v-model.number="form.estacionamiento" type="number" placeholder="Estac." class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           </div>
           <input v-model="form.extras" placeholder="Extras" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 gap-2">
             <input v-model.number="form.montoRenta" type="number" placeholder="Renta $" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
             <input v-model.number="form.cuotaAgua" type="number" placeholder="Agua $" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
-            <input v-model.number="form.diaVencimiento" type="number" min="1" max="31" placeholder="Día venc." class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           </div>
+          <select v-model="form.contratoLuzId" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+            <option :value="null">Sin Contrato de Luz propio</option>
+            <option v-for="c in contratosLuz" :key="c.id" :value="c.id">⚡ {{ c.nombre }} ({{ c.rpu }})</option>
+          </select>
+          <input v-model.number="form.diaVencimiento" type="number" min="1" max="31" placeholder="Día vencimiento (1-31)" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <textarea v-model="form.descripcionPublicacion" placeholder="Descripción para publicación (con emojis)" rows="3" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"></textarea>
           <input v-model="form.inquilinoCorreo" placeholder="Correo inquilino (vacío = disponible)" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
           <div class="flex gap-2 justify-end mt-4">
@@ -78,13 +85,20 @@ import api from '../api'
 
 const items = ref([])
 const ubicaciones = ref([])
+const contratosLuz = ref([])
 const showForm = ref(false)
-const emptyForm = { idUbicacion: '', clave: '', descripcion: '', cuartos: 0, banos: 0, estacionamiento: 0, extras: '', montoRenta: 0, cuotaAgua: 0, diaVencimiento: 1, descripcionPublicacion: '', inquilinoCorreo: '' }
+const emptyForm = { idUbicacion: '', clave: '', descripcion: '', cuartos: 0, banos: 0, estacionamiento: 0, extras: '', montoRenta: 0, cuotaAgua: 0, contratoLuzId: null, diaVencimiento: 1, descripcionPublicacion: '', inquilinoCorreo: '' }
 const form = ref({ ...emptyForm })
 
 async function load() {
-  items.value = (await api.get('/departamentos')).data
-  ubicaciones.value = (await api.get('/ubicaciones')).data
+  const [resDeptos, resUbi, resLuz] = await Promise.all([
+    api.get('/departamentos'),
+    api.get('/ubicaciones'),
+    api.get('/contratos/luz')
+  ])
+  items.value = resDeptos.data
+  ubicaciones.value = resUbi.data
+  contratosLuz.value = resLuz.data
 }
 onMounted(load)
 

@@ -81,3 +81,4 @@
 /home/admin/Projects/rentas-system/backend/obj/Debug/net9.0/RentasApi.pdb
 /home/admin/Projects/rentas-system/backend/obj/Debug/net9.0/RentasApi.genruntimeconfig.cache
 /home/admin/Projects/rentas-system/backend/obj/Debug/net9.0/ref/RentasApi.dll
+/home/admin/Projects/rentas-system/backend/obj/Debug/net9.0/RentasApi.sourcelink.json

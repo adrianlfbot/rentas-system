@@ -64,6 +64,7 @@ public class RentasContext : DbContext
             e.ToTable("Departamento");
             e.HasKey(d => d.ID);
             e.HasOne(d => d.Ubicacion).WithMany(u => u.Departamentos).HasForeignKey(d => d.IDUbicacion);
+            e.HasOne(d => d.ContratoLuz).WithMany().HasForeignKey(d => d.ContratoLuzId);
             e.HasOne(d => d.Inquilino).WithMany().HasForeignKey(d => d.InquilinoCorreo);
             e.HasIndex(d => new { d.IDUbicacion, d.Clave }).IsUnique();
         });

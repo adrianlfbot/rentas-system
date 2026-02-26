@@ -8,7 +8,7 @@ using RentasApi.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // SQLite
-var dbPath = Path.Combine(builder.Environment.ContentRootPath, "..", "rentas.db");
+var dbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? Path.Combine(builder.Environment.ContentRootPath, "..", "rentas.db");
 builder.Services.AddDbContext<RentasContext>(opt =>
     opt.UseSqlite($"Data Source={dbPath}"));
 

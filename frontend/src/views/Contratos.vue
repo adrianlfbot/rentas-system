@@ -19,6 +19,7 @@
           <tr>
             <th class="px-4 py-3 text-left text-gray-400">ID</th>
             <th class="px-4 py-3 text-left text-gray-400">Nombre</th>
+            <th v-if="activeTab === 'luz'" class="px-4 py-3 text-left text-gray-400">Email</th>
             <th v-for="col in extraCols" :key="col" class="px-4 py-3 text-left text-gray-400">{{ col }}</th>
             <th class="px-4 py-3 text-left text-gray-400">Vencimiento</th>
             <th class="px-4 py-3 text-left text-gray-400">Periodo</th>
@@ -29,6 +30,7 @@
           <tr v-for="c in items" :key="c.id" class="border-t border-gray-800 hover:bg-gray-800/30">
             <td class="px-4 py-3">{{ c.id }}</td>
             <td class="px-4 py-3">{{ c.nombre }}</td>
+            <td v-if="activeTab === 'luz'" class="px-4 py-3">{{ c.email || '—' }}</td>
             <td v-for="col in extraColKeys" :key="col" class="px-4 py-3">{{ c[col] }}</td>
             <td class="px-4 py-3">{{ c.fechaVencimiento?.split('T')[0] }}</td>
             <td class="px-4 py-3">{{ c.periodoEmision }}</td>
@@ -47,6 +49,7 @@
         <h2 class="text-lg font-bold mb-4">{{ form.id ? 'Editar' : 'Nuevo' }} Contrato</h2>
         <form @submit.prevent="save" class="space-y-3">
           <input v-model="form.nombre" placeholder="Nombre" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          <input v-if="activeTab === 'luz'" v-model="form.email" type="email" placeholder="Email" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <input v-for="f in extraFields" :key="f.key" v-model="form[f.key]" :placeholder="f.label" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <input v-model="form.fechaVencimiento" type="date" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <select v-model="form.periodoEmision" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">

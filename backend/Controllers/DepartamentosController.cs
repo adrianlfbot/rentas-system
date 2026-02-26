@@ -16,12 +16,20 @@ public class DepartamentosController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
-        Ok(await _db.Departamentos.Include(d => d.Ubicacion).Include(d => d.Inquilino).ToListAsync());
+        Ok(await _db.Departamentos
+            .Include(d => d.Ubicacion)
+            .Include(d => d.ContratoLuz) // Nuevo
+            .Include(d => d.Inquilino)
+            .ToListAsync());
 
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(int id)
     {
-        var d = await _db.Departamentos.Include(d => d.Ubicacion).Include(d => d.Inquilino).FirstOrDefaultAsync(d => d.ID == id);
+        var d = await _db.Departamentos
+            .Include(d => d.Ubicacion)
+            .Include(d => d.ContratoLuz) // Nuevo
+            .Include(d => d.Inquilino)
+            .FirstOrDefaultAsync(d => d.ID == id);
         if (d == null) return NotFound();
         return Ok(d);
     }
@@ -88,6 +96,7 @@ public class DepartamentosController : ControllerBase
         d.Extras = updated.Extras;
         d.MontoRenta = updated.MontoRenta;
         d.CuotaAgua = updated.CuotaAgua;
+        d.ContratoLuzId = updated.ContratoLuzId; // Nuevo
         d.DiaVencimiento = updated.DiaVencimiento;
         d.DescripcionPublicacion = updated.DescripcionPublicacion;
         d.InquilinoCorreo = updated.InquilinoCorreo;

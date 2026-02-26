@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagrama ER - Sistema de Rentas</title>
+    <style>body { background: white; font-family: sans-serif; text-align: center; }</style>
+</head>
+<body>
+    <h1>Diagrama ER - Sistema de Rentas</h1>
+    <pre class="mermaid">
+erDiagram
+    USUARIOS {
+        string Correo PK
+        string Password
+        datetime FechaUltimoAcceso
+        string Tipo
+        string INE
+        string Telefono
+    }
+    UBICACIONES {
+        int IDUbicacion PK
+        string Calle
+        string Numero
+        string Propietario
+        string NumeroPredial
+        int ContratoLuzId FK
+        int ContratoAguaId FK
+        int ContratoInternetId FK
+    }
+    DEPARTAMENTO {
+        int ID PK
+        int IDUbicacion FK
+        string Clave
+        string Descripcion
+        int Cuartos
+        int Banos
+        int Estacionamiento
+        string Extras
+        real MontoRenta
+        real CuotaAgua
+        int DiaVencimiento
+        string DescripcionPublicacion
+        string InquilinoCorreo FK
+    }
+    HISTORIAL_INQUILINOS {
+        int ID PK
+        int DepartamentoId FK
+        string CorreoInquilino FK
+        date FechaInicio
+        date FechaFin
+    }
+    COBRANZA {
+        int ID PK
+        int IDUbicacion FK
+        string ClaveDepartamento
+        string Periodo
+        date FechaCobro
+        string Medio
+        real Monto
+    }
+    TICKETS {
+        int ID PK
+        datetime FechaCreacion
+        string UsuarioCreo FK
+        string Prioridad
+        string Descripcion
+        string Estado
+        datetime UltimoRecordatorio
+    }
+    ADJUNTOS {
+        int ID PK
+        string MimeType
+        string Tipo
+        int IDPadre
+        string Filename
+        string FilePath
+        datetime FechaCreacion
+    }
+    CONTRATO_LUZ {
+        int ID PK
+        string RPU
+        string Nombre
+        string NumeroMedidor
+        date FechaVencimiento
+        string PeriodoEmision
+    }
+    CONTRATO_AGUA {
+        int ID PK
+        string NumeroInmueble
+        string Nombre
+        string NumeroContrato
+        date FechaVencimiento
+        string PeriodoEmision
+    }
+    CONTRATO_INTERNET {
+        int ID PK
+        string NumeroContrato
+        string Nombre
+        string NumeroPagoOXXO
+        date FechaVencimiento
+        string PeriodoEmision
+    }
+
+    UBICACIONES ||--o{ DEPARTAMENTO : tiene
+    UBICACIONES ||--o| CONTRATO_LUZ : usa
+    UBICACIONES ||--o| CONTRATO_AGUA : usa
+    UBICACIONES ||--o| CONTRATO_INTERNET : usa
+    DEPARTAMENTO ||--o{ HISTORIAL_INQUILINOS : registra
+    DEPARTAMENTO }o--o| USUARIOS : inquilino_actual
+    USUARIOS ||--o{ TICKETS : reporta
+    USUARIOS ||--o{ HISTORIAL_INQUILINOS : historial
+    COBRANZA }o--|| UBICACIONES : pertenece
+    </pre>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+</html>

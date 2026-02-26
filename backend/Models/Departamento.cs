@@ -1,15 +1,10 @@
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace RentasApi.Models;
 
-[Table("Departamento")]
 public class Departamento
 {
-    [Key]
     public int ID { get; set; }
     public int IDUbicacion { get; set; }
-    public string Clave { get; set; } = null!;
+    public string Clave { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public int Cuartos { get; set; }
     public int Banos { get; set; }
@@ -17,14 +12,13 @@ public class Departamento
     public string? Extras { get; set; }
     public double MontoRenta { get; set; }
     public double CuotaAgua { get; set; }
+    public int? ContratoLuzId { get; set; } // Nuevo
     public int DiaVencimiento { get; set; } = 1;
     public string? DescripcionPublicacion { get; set; }
     public string? InquilinoCorreo { get; set; }
 
-    [ForeignKey("IDUbicacion")]
+    // Navigation
     public Ubicacion? Ubicacion { get; set; }
-    [ForeignKey("InquilinoCorreo")]
+    public ContratoLuz? ContratoLuz { get; set; } // Nuevo
     public Usuario? Inquilino { get; set; }
-
-    public ICollection<HistorialInquilino> HistorialInquilinos { get; set; } = new List<HistorialInquilino>();
 }

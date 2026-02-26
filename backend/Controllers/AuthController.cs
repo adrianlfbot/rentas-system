@@ -1,11 +1,11 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using RentasApi.Data;
-using RentasApi.Models;
+using RentasApi.DTOs;
 
 namespace RentasApi.Controllers;
 
@@ -23,33 +23,46 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest req)
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
-        var user = await _db.Usuarios.FindAsync(req.Correo);
-        if (user == null || !BCrypt.Net.BCrypt.Verify(req.Password, user.Password))
-            return Unauthorized(new { message = "Credenciales inválidas" });
+        var user = await _db.Usuarios.FindAsync(dto.Correo);
+        if (user == null) return Unauthorized("Credenciales inválidas");
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.Password))
+            return Unauthorized("Credenciales inválidas");
 
         user.FechaUltimoAcceso = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
-        var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
-            claims: new[]
-            {
-                new Claim(ClaimTypes.Email, user.Correo),
-                new Claim(ClaimTypes.Role, user.Tipo)
-            },
-            expires: DateTime.UtcNow.AddHours(24),
-            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
-        );
-
-        return Ok(new
+        var token = GenerateToken(user.Correo, user.Tipo);
+        return Ok(new LoginResponseDto
         {
-            token = new JwtSecurityTokenHandler().WriteToken(token),
-            correo = user.Correo,
-            tipo = user.Tipo
+            Token = token,
+            Correo = user.Correo,
+            Tipo = user.Tipo
         });
+    }
+
+    private string GenerateToken(string correo, string tipo)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+            _config["Jwt:Key"] ?? "RentasSystem2026SuperSecretKeyMinimo32Chars!"));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Email, correo),
+            new Claim(ClaimTypes.Role, tipo),
+            new Claim("correo", correo)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: "RentasApi",
+            audience: "RentasApp",
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(24),
+            signingCredentials: creds);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

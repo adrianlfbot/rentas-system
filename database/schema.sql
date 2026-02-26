@@ -1,5 +1,5 @@
 -- =============================================
--- Sistema de Control de Rentas - Schema SQLite
+-- Sistema de Control de Rentas - Schema SQLite (Updated v2)
 -- =============================================
 
 PRAGMA journal_mode=WAL;
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS ContratoLuz (
     ID              INTEGER PRIMARY KEY AUTOINCREMENT,
     RPU             TEXT NOT NULL,
     Nombre          TEXT NOT NULL,
+    Email           TEXT, -- Nuevo campo
     NumeroMedidor   TEXT,
     FechaVencimiento DATE,
     PeriodoEmision  TEXT CHECK(PeriodoEmision IN ('Semanal', 'Quincenal', 'Mensual', 'Bimestral', 'Semestral', 'Anual'))
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS Departamento (
     Extras          TEXT,
     MontoRenta      REAL NOT NULL DEFAULT 0,
     CuotaAgua       REAL DEFAULT 0,
+    ContratoLuzId   INTEGER REFERENCES ContratoLuz(ID), -- Nuevo campo
     DiaVencimiento  INTEGER DEFAULT 1 CHECK(DiaVencimiento BETWEEN 1 AND 31),
     DescripcionPublicacion TEXT,
     InquilinoCorreo TEXT REFERENCES Usuarios(Correo),
@@ -89,7 +91,7 @@ CREATE TABLE IF NOT EXISTS Cobranza (
     ID              INTEGER PRIMARY KEY AUTOINCREMENT,
     IDUbicacion     INTEGER NOT NULL REFERENCES Ubicaciones(IDUbicacion),
     ClaveDepartamento TEXT NOT NULL,
-    Periodo         TEXT NOT NULL,  -- formato: "2026-02" (año-mes)
+    Periodo         TEXT NOT NULL,
     FechaCobro      DATE,
     Medio           TEXT,
     Monto           REAL NOT NULL DEFAULT 0
@@ -106,11 +108,11 @@ CREATE TABLE IF NOT EXISTS Tickets (
     UltimoRecordatorio DATETIME
 );
 
--- Adjuntos (tabla polimórfica)
+-- Adjuntos
 CREATE TABLE IF NOT EXISTS Adjuntos (
     ID              INTEGER PRIMARY KEY AUTOINCREMENT,
     MimeType        TEXT NOT NULL,
-    Tipo            TEXT NOT NULL,  -- nombre de la entidad: 'Ubicaciones', 'Departamento', 'Cobranza', 'Tickets', etc.
+    Tipo            TEXT NOT NULL,
     IDPadre         INTEGER NOT NULL,
     Filename        TEXT,
     FilePath        TEXT NOT NULL,
@@ -121,9 +123,3 @@ CREATE TABLE IF NOT EXISTS Adjuntos (
 CREATE INDEX IF NOT EXISTS idx_departamento_ubicacion ON Departamento(IDUbicacion);
 CREATE INDEX IF NOT EXISTS idx_departamento_inquilino ON Departamento(InquilinoCorreo);
 CREATE INDEX IF NOT EXISTS idx_cobranza_periodo ON Cobranza(Periodo);
-CREATE INDEX IF NOT EXISTS idx_cobranza_ubicacion ON Cobranza(IDUbicacion, ClaveDepartamento);
-CREATE INDEX IF NOT EXISTS idx_tickets_usuario ON Tickets(UsuarioCreo);
-CREATE INDEX IF NOT EXISTS idx_tickets_estado ON Tickets(Estado);
-CREATE INDEX IF NOT EXISTS idx_adjuntos_padre ON Adjuntos(Tipo, IDPadre);
-CREATE INDEX IF NOT EXISTS idx_historial_depto ON HistorialInquilinos(DepartamentoId);
-CREATE INDEX IF NOT EXISTS idx_historial_inquilino ON HistorialInquilinos(CorreoInquilino);
