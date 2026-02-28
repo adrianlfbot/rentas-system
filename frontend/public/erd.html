@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Diagrama ER - Sistema de Rentas (v2)</title>
+    <title>Diagrama ER - Sistema de Rentas (v3)</title>
     <style>body { background: white; font-family: sans-serif; text-align: center; }</style>
 </head>
 <body>
-    <h1>Diagrama ER - Sistema de Rentas (v2)</h1>
-    <p>Actualizado: Email en Contratos y asignación directa de Luz a Departamentos.</p>
+    <h1>Diagrama ER - Sistema de Rentas (v3)</h1>
+    <p>Actualizado: Notas de Departamento, Email en Contratos y Asignación de Luz.</p>
     <pre class="mermaid">
 erDiagram
     USUARIOS {
@@ -39,10 +39,17 @@ erDiagram
         string Extras
         real MontoRenta
         real CuotaAgua
-        int ContratoLuzId FK "Nuevo: Medidor propio"
+        int ContratoLuzId FK "Medidor propio"
         int DiaVencimiento
         string DescripcionPublicacion
         string InquilinoCorreo FK
+    }
+    NOTAS_DEPARTAMENTO {
+        int ID PK
+        int DepartamentoId FK
+        string Texto
+        datetime Fecha
+        string UsuarioCreo FK
     }
     HISTORIAL_INQUILINOS {
         int ID PK
@@ -82,7 +89,7 @@ erDiagram
         int ID PK
         string RPU
         string Nombre
-        string Email "Nuevo"
+        string Email
         string NumeroMedidor
         date FechaVencimiento
         string PeriodoEmision
@@ -111,11 +118,13 @@ erDiagram
     UBICACIONES ||--o| CONTRATO_INTERNET : usa
     
     DEPARTAMENTO ||--o{ HISTORIAL_INQUILINOS : registra
+    DEPARTAMENTO ||--o{ NOTAS_DEPARTAMENTO : tiene
     DEPARTAMENTO }o--o| USUARIOS : inquilino_actual
     DEPARTAMENTO }o--o| CONTRATO_LUZ : "medidor propio"
 
     USUARIOS ||--o{ TICKETS : reporta
     USUARIOS ||--o{ HISTORIAL_INQUILINOS : historial
+    USUARIOS ||--o{ NOTAS_DEPARTAMENTO : crea
     
     COBRANZA }o--|| UBICACIONES : pertenece
     </pre>
