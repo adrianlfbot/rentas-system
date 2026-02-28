@@ -17,36 +17,17 @@ public class RentasContext : DbContext
     public DbSet<Cobranza> Cobranza => Set<Cobranza>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Adjunto> Adjuntos => Set<Adjunto>();
+    public DbSet<NotaDepartamento> NotasDepartamento => Set<NotaDepartamento>(); // Nuevo
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Usuario
-        modelBuilder.Entity<Usuario>(e =>
-        {
-            e.ToTable("Usuarios");
-            e.HasKey(u => u.Correo);
-        });
+        modelBuilder.Entity<Usuario>(e => { e.ToTable("Usuarios"); e.HasKey(u => u.Correo); });
 
-        // ContratoLuz
-        modelBuilder.Entity<ContratoLuz>(e =>
-        {
-            e.ToTable("ContratoLuz");
-            e.HasKey(c => c.ID);
-        });
-
-        // ContratoAgua
-        modelBuilder.Entity<ContratoAgua>(e =>
-        {
-            e.ToTable("ContratoAgua");
-            e.HasKey(c => c.ID);
-        });
-
-        // ContratoInternet
-        modelBuilder.Entity<ContratoInternet>(e =>
-        {
-            e.ToTable("ContratoInternet");
-            e.HasKey(c => c.ID);
-        });
+        // Contratos
+        modelBuilder.Entity<ContratoLuz>(e => { e.ToTable("ContratoLuz"); e.HasKey(c => c.ID); });
+        modelBuilder.Entity<ContratoAgua>(e => { e.ToTable("ContratoAgua"); e.HasKey(c => c.ID); });
+        modelBuilder.Entity<ContratoInternet>(e => { e.ToTable("ContratoInternet"); e.HasKey(c => c.ID); });
 
         // Ubicacion
         modelBuilder.Entity<Ubicacion>(e =>
@@ -69,6 +50,15 @@ public class RentasContext : DbContext
             e.HasIndex(d => new { d.IDUbicacion, d.Clave }).IsUnique();
         });
 
+        // Notas Departamento
+        modelBuilder.Entity<NotaDepartamento>(e =>
+        {
+            e.ToTable("NotasDepartamento");
+            e.HasKey(n => n.ID);
+            e.HasOne(n => n.Departamento).WithMany().HasForeignKey(n => n.DepartamentoId);
+            e.HasOne(n => n.Usuario).WithMany().HasForeignKey(n => n.UsuarioCreo);
+        });
+
         // HistorialInquilino
         modelBuilder.Entity<HistorialInquilino>(e =>
         {
@@ -79,26 +69,12 @@ public class RentasContext : DbContext
         });
 
         // Cobranza
-        modelBuilder.Entity<Cobranza>(e =>
-        {
-            e.ToTable("Cobranza");
-            e.HasKey(c => c.ID);
-            e.HasOne(c => c.Ubicacion).WithMany().HasForeignKey(c => c.IDUbicacion);
-        });
+        modelBuilder.Entity<Cobranza>(e => { e.ToTable("Cobranza"); e.HasKey(c => c.ID); e.HasOne(c => c.Ubicacion).WithMany().HasForeignKey(c => c.IDUbicacion); });
 
         // Ticket
-        modelBuilder.Entity<Ticket>(e =>
-        {
-            e.ToTable("Tickets");
-            e.HasKey(t => t.ID);
-            e.HasOne(t => t.Usuario).WithMany().HasForeignKey(t => t.UsuarioCreo);
-        });
+        modelBuilder.Entity<Ticket>(e => { e.ToTable("Tickets"); e.HasKey(t => t.ID); e.HasOne(t => t.Usuario).WithMany().HasForeignKey(t => t.UsuarioCreo); });
 
         // Adjunto
-        modelBuilder.Entity<Adjunto>(e =>
-        {
-            e.ToTable("Adjuntos");
-            e.HasKey(a => a.ID);
-        });
+        modelBuilder.Entity<Adjunto>(e => { e.ToTable("Adjuntos"); e.HasKey(a => a.ID); });
     }
 }

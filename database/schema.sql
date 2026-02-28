@@ -1,5 +1,5 @@
 -- =============================================
--- Sistema de Control de Rentas - Schema SQLite (Updated v2)
+-- Sistema de Control de Rentas - Schema SQLite (Updated v3)
 -- =============================================
 
 PRAGMA journal_mode=WAL;
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS ContratoLuz (
     ID              INTEGER PRIMARY KEY AUTOINCREMENT,
     RPU             TEXT NOT NULL,
     Nombre          TEXT NOT NULL,
-    Email           TEXT, -- Nuevo campo
+    Email           TEXT, 
     NumeroMedidor   TEXT,
     FechaVencimiento DATE,
     PeriodoEmision  TEXT CHECK(PeriodoEmision IN ('Semanal', 'Quincenal', 'Mensual', 'Bimestral', 'Semestral', 'Anual'))
@@ -70,11 +70,20 @@ CREATE TABLE IF NOT EXISTS Departamento (
     Extras          TEXT,
     MontoRenta      REAL NOT NULL DEFAULT 0,
     CuotaAgua       REAL DEFAULT 0,
-    ContratoLuzId   INTEGER REFERENCES ContratoLuz(ID), -- Nuevo campo
+    ContratoLuzId   INTEGER REFERENCES ContratoLuz(ID),
     DiaVencimiento  INTEGER DEFAULT 1 CHECK(DiaVencimiento BETWEEN 1 AND 31),
     DescripcionPublicacion TEXT,
     InquilinoCorreo TEXT REFERENCES Usuarios(Correo),
     UNIQUE(IDUbicacion, Clave)
+);
+
+-- Notas de Departamento (Nuevo v3)
+CREATE TABLE IF NOT EXISTS NotasDepartamento (
+    ID              INTEGER PRIMARY KEY AUTOINCREMENT,
+    DepartamentoId  INTEGER NOT NULL REFERENCES Departamento(ID),
+    Texto           TEXT NOT NULL,
+    Fecha           DATETIME NOT NULL DEFAULT (datetime('now')),
+    UsuarioCreo     TEXT REFERENCES Usuarios(Correo)
 );
 
 -- Historial de Inquilinos
@@ -123,3 +132,4 @@ CREATE TABLE IF NOT EXISTS Adjuntos (
 CREATE INDEX IF NOT EXISTS idx_departamento_ubicacion ON Departamento(IDUbicacion);
 CREATE INDEX IF NOT EXISTS idx_departamento_inquilino ON Departamento(InquilinoCorreo);
 CREATE INDEX IF NOT EXISTS idx_cobranza_periodo ON Cobranza(Periodo);
+CREATE INDEX IF NOT EXISTS idx_notas_depto ON NotasDepartamento(DepartamentoId);

@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Diagrama ER - Sistema de Rentas</title>
+    <title>Diagrama ER - Sistema de Rentas (v2)</title>
     <style>body { background: white; font-family: sans-serif; text-align: center; }</style>
 </head>
 <body>
-    <h1>Diagrama ER - Sistema de Rentas</h1>
+    <h1>Diagrama ER - Sistema de Rentas (v2)</h1>
+    <p>Actualizado: Email en Contratos y asignación directa de Luz a Departamentos.</p>
     <pre class="mermaid">
 erDiagram
     USUARIOS {
@@ -38,6 +39,7 @@ erDiagram
         string Extras
         real MontoRenta
         real CuotaAgua
+        int ContratoLuzId FK "Nuevo: Medidor propio"
         int DiaVencimiento
         string DescripcionPublicacion
         string InquilinoCorreo FK
@@ -80,6 +82,7 @@ erDiagram
         int ID PK
         string RPU
         string Nombre
+        string Email "Nuevo"
         string NumeroMedidor
         date FechaVencimiento
         string PeriodoEmision
@@ -101,14 +104,19 @@ erDiagram
         string PeriodoEmision
     }
 
+    %% Relaciones
     UBICACIONES ||--o{ DEPARTAMENTO : tiene
-    UBICACIONES ||--o| CONTRATO_LUZ : usa
+    UBICACIONES ||--o| CONTRATO_LUZ : "medidor general"
     UBICACIONES ||--o| CONTRATO_AGUA : usa
     UBICACIONES ||--o| CONTRATO_INTERNET : usa
+    
     DEPARTAMENTO ||--o{ HISTORIAL_INQUILINOS : registra
     DEPARTAMENTO }o--o| USUARIOS : inquilino_actual
+    DEPARTAMENTO }o--o| CONTRATO_LUZ : "medidor propio"
+
     USUARIOS ||--o{ TICKETS : reporta
     USUARIOS ||--o{ HISTORIAL_INQUILINOS : historial
+    
     COBRANZA }o--|| UBICACIONES : pertenece
     </pre>
     <script type="module">

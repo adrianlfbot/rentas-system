@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentasApi.Data;
 using RentasApi.Models;
+using System.Security.Claims;
 
 namespace RentasApi.Controllers;
 
@@ -14,11 +15,13 @@ public class DepartamentosController : ControllerBase
     private readonly RentasContext _db;
     public DepartamentosController(RentasContext db) => _db = db;
 
+    private string GetCorreo() => User.FindFirst("correo")?.Value ?? "";
+
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
         Ok(await _db.Departamentos
             .Include(d => d.Ubicacion)
-            .Include(d => d.ContratoLuz) // Nuevo
+            .Include(d => d.ContratoLuz)
             .Include(d => d.Inquilino)
             .ToListAsync());
 
@@ -27,12 +30,39 @@ public class DepartamentosController : ControllerBase
     {
         var d = await _db.Departamentos
             .Include(d => d.Ubicacion)
-            .Include(d => d.ContratoLuz) // Nuevo
+            .Include(d => d.ContratoLuz)
             .Include(d => d.Inquilino)
             .FirstOrDefaultAsync(d => d.ID == id);
         if (d == null) return NotFound();
         return Ok(d);
     }
+
+    // === NOTAS ===
+    [HttpGet("{id}/notas")]
+    public async Task<IActionResult> GetNotas(int id) =>
+        Ok(await _db.NotasDepartamento.Where(n => n.DepartamentoId == id).OrderByDescending(n => n.Fecha).ToListAsync());
+
+    [HttpPost("{id}/notas")]
+    public async Task<IActionResult> AddNota(int id, [FromBody] NotaDepartamento nota)
+    {
+        nota.DepartamentoId = id;
+        nota.Fecha = DateTime.UtcNow;
+        nota.UsuarioCreo = GetCorreo();
+        _db.NotasDepartamento.Add(nota);
+        await _db.SaveChangesAsync();
+        return Ok(nota);
+    }
+
+    [HttpDelete("notas/{notaId}")]
+    public async Task<IActionResult> DeleteNota(int notaId)
+    {
+        var n = await _db.NotasDepartamento.FindAsync(notaId);
+        if (n == null) return NotFound();
+        _db.NotasDepartamento.Remove(n);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+    // =============
 
     [HttpGet("{id}/historial")]
     public async Task<IActionResult> GetHistorial(int id) =>
@@ -64,10 +94,8 @@ public class DepartamentosController : ControllerBase
         var d = await _db.Departamentos.FindAsync(id);
         if (d == null) return NotFound();
 
-        // Si cambia el inquilino, registrar en historial
         if (d.InquilinoCorreo != updated.InquilinoCorreo)
         {
-            // Cerrar historial anterior
             if (!string.IsNullOrEmpty(d.InquilinoCorreo))
             {
                 var hist = await _db.HistorialInquilinos
@@ -75,7 +103,6 @@ public class DepartamentosController : ControllerBase
                     .FirstOrDefaultAsync();
                 if (hist != null) hist.FechaFin = DateTime.UtcNow;
             }
-            // Abrir nuevo historial
             if (!string.IsNullOrEmpty(updated.InquilinoCorreo))
             {
                 _db.HistorialInquilinos.Add(new HistorialInquilino
@@ -96,7 +123,7 @@ public class DepartamentosController : ControllerBase
         d.Extras = updated.Extras;
         d.MontoRenta = updated.MontoRenta;
         d.CuotaAgua = updated.CuotaAgua;
-        d.ContratoLuzId = updated.ContratoLuzId; // Nuevo
+        d.ContratoLuzId = updated.ContratoLuzId;
         d.DiaVencimiento = updated.DiaVencimiento;
         d.DescripcionPublicacion = updated.DescripcionPublicacion;
         d.InquilinoCorreo = updated.InquilinoCorreo;

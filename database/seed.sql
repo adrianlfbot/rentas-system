@@ -1,5 +1,5 @@
 -- =============================================
--- Datos de prueba (Updated v2)
+-- Datos de prueba (Updated v3)
 -- =============================================
 
 INSERT INTO Usuarios (Correo, Password, Tipo, Telefono) VALUES
@@ -19,8 +19,13 @@ INSERT INTO ContratoInternet (NumeroContrato, Nombre, NumeroPagoOXXO, FechaVenci
     ('INT-001', 'Fibra Optica', 'OXXO-999', '2026-03-05', 'Mensual');
 
 INSERT INTO Ubicaciones (Calle, Numero, Propietario, NumeroPredial, ContratoLuzId, ContratoAguaId, ContratoInternetId) VALUES
-    ('Av. Vallarta', '500', 'Adrian LF', 'PRED-500', 1, 1, 1);
+    ('Av. Vallarta', '500', 'Adrian LF', 'PRED-500', 1, 1, 1),
+    ('La Fragua', 'S/N', 'Adrian LF', 'PENDIENTE', NULL, NULL, NULL);
 
 INSERT INTO Departamento (IDUbicacion, Clave, Descripcion, Cuartos, Banos, MontoRenta, ContratoLuzId, InquilinoCorreo) VALUES
     (1, '101', 'Planta Baja Interior', 2, 1, 5500.00, 2, 'inquilino1@gmail.com'),
     (1, '102', 'Planta Baja Exterior', 2, 1, 5800.00, 3, 'inquilino2@gmail.com');
+
+INSERT INTO NotasDepartamento (DepartamentoId, Texto, UsuarioCreo) VALUES
+    (1, 'Se cambió la chapa de la puerta principal', 'admin@rentas.com'),
+    (2, 'Pendiente pintar la pared de la sala', 'admin@rentas.com');

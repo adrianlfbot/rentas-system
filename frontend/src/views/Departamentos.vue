@@ -1,11 +1,11 @@
 <template>
-  <div class="p-8">
+  <div class="p-4 md:p-8">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Departamentos</h1>
       <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">+ Nuevo</button>
     </div>
 
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-gray-800/50">
           <tr>
@@ -13,7 +13,6 @@
             <th class="px-4 py-3 text-left text-gray-400">Clave</th>
             <th class="px-4 py-3 text-left text-gray-400">Descripción</th>
             <th class="px-4 py-3 text-left text-gray-400">Renta</th>
-            <th class="px-4 py-3 text-left text-gray-400">Contrato Luz</th>
             <th class="px-4 py-3 text-left text-gray-400">Inquilino</th>
             <th class="px-4 py-3 text-left text-gray-400">Acciones</th>
           </tr>
@@ -25,24 +24,21 @@
             <td class="px-4 py-3">{{ d.descripcion }}</td>
             <td class="px-4 py-3">${{ d.montoRenta?.toLocaleString() }}</td>
             <td class="px-4 py-3">
-              <span v-if="d.contratoLuz" class="text-yellow-400">⚡ {{ d.contratoLuz.nombre }}</span>
-              <span v-else class="text-gray-600">—</span>
-            </td>
-            <td class="px-4 py-3">
               <span v-if="d.inquilinoCorreo" class="text-emerald-400">{{ d.inquilinoCorreo }}</span>
               <span v-else class="text-gray-500">Vacío</span>
             </td>
-            <td class="px-4 py-3 space-x-2">
-              <button @click="edit(d)" class="text-blue-400 hover:text-blue-300">✏️</button>
-              <button @click="remove(d.id)" class="text-red-400 hover:text-red-300">🗑️</button>
+            <td class="px-4 py-3 flex gap-2">
+              <button @click="edit(d)" class="text-blue-400 hover:text-blue-300" title="Editar">✏️</button>
+              <button @click="openNotas(d)" class="text-yellow-400 hover:text-yellow-300" title="Notas">📝</button>
+              <button @click="remove(d.id)" class="text-red-400 hover:text-red-300" title="Eliminar">🗑️</button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Modal -->
-    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <!-- Modal Form -->
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-bold mb-4">{{ form.id ? 'Editar' : 'Nuevo' }} Departamento</h2>
         <form @submit.prevent="save" class="space-y-3">
@@ -76,6 +72,34 @@
         </form>
       </div>
     </div>
+
+    <!-- Modal Notas -->
+    <div v-if="showNotas" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg h-[80vh] flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold">📝 Notas - {{ activeDepto?.clave }}</h2>
+          <button @click="showNotas = false" class="text-gray-400 hover:text-white">✕</button>
+        </div>
+        
+        <!-- Lista de notas -->
+        <div class="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
+          <div v-for="nota in notas" :key="nota.id" class="bg-gray-800 p-3 rounded-lg border border-gray-700 relative group">
+            <p class="text-sm text-gray-200 whitespace-pre-wrap">{{ nota.texto }}</p>
+            <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+              <span>{{ new Date(nota.fecha).toLocaleString() }} - {{ nota.usuarioCreo }}</span>
+              <button @click="deleteNota(nota.id)" class="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">Eliminar</button>
+            </div>
+          </div>
+          <div v-if="notas.length === 0" class="text-center text-gray-500 py-4">No hay notas registradas</div>
+        </div>
+
+        <!-- Form nueva nota -->
+        <form @submit.prevent="addNota" class="flex gap-2">
+          <input v-model="newNota" placeholder="Escribe una nota..." required class="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
+          <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm">Enviar</button>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -87,6 +111,11 @@ const items = ref([])
 const ubicaciones = ref([])
 const contratosLuz = ref([])
 const showForm = ref(false)
+const showNotas = ref(false)
+const notas = ref([])
+const activeDepto = ref(null)
+const newNota = ref('')
+
 const emptyForm = { idUbicacion: '', clave: '', descripcion: '', cuartos: 0, banos: 0, estacionamiento: 0, extras: '', montoRenta: 0, cuotaAgua: 0, contratoLuzId: null, diaVencimiento: 1, descripcionPublicacion: '', inquilinoCorreo: '' }
 const form = ref({ ...emptyForm })
 
@@ -114,5 +143,30 @@ async function save() {
 
 async function remove(id) {
   if (confirm('¿Eliminar departamento?')) { await api.delete(`/departamentos/${id}`); await load() }
+}
+
+// Notas Logic
+async function openNotas(d) {
+  activeDepto.value = d
+  const res = await api.get(`/departamentos/${d.id}/notas`)
+  notas.value = res.data
+  showNotas.value = true
+}
+
+async function addNota() {
+  if (!newNota.value.trim()) return
+  await api.post(`/departamentos/${activeDepto.value.id}/notas`, { texto: newNota.value })
+  newNota.value = ''
+  // Reload notas
+  const res = await api.get(`/departamentos/${activeDepto.value.id}/notas`)
+  notas.value = res.data
+}
+
+async function deleteNota(id) {
+  if (confirm('¿Borrar nota?')) {
+    await api.delete(`/departamentos/notas/${id}`)
+    const res = await api.get(`/departamentos/${activeDepto.value.id}/notas`)
+    notas.value = res.data
+  }
 }
 </script>
