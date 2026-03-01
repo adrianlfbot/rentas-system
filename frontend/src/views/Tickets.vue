@@ -5,8 +5,8 @@
       <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo Ticket</button>
     </div>
 
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <table class="w-full text-sm">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+      <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
             <th class="px-4 py-3 text-left text-gray-400">ID</th>
@@ -40,8 +40,8 @@
     </div>
 
     <!-- Modal -->
-    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg">
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-bold mb-4">{{ form.id ? 'Editar' : 'Nuevo' }} Ticket</h2>
         <form @submit.prevent="save" class="space-y-3">
           <select v-model="form.prioridad" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
@@ -56,6 +56,9 @@
             <button type="submit" class="px-4 py-2 bg-emerald-600 rounded-lg text-sm font-medium">Guardar</button>
           </div>
         </form>
+
+        <!-- Adjuntos -->
+        <FileUploader v-if="form.id" tipo="Ticket" :id-padre="form.id" />
       </div>
     </div>
   </div>
@@ -65,6 +68,7 @@
 import { ref, onMounted } from 'vue'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
+import FileUploader from '../components/FileUploader.vue'
 
 const auth = useAuthStore()
 const items = ref([])
@@ -79,8 +83,12 @@ function edit(t) { form.value = { ...t }; showForm.value = true }
 
 async function save() {
   if (form.value.id) await api.put(`/tickets/${form.value.id}`, form.value)
-  else await api.post('/tickets', form.value)
-  showForm.value = false; await load()
+  else {
+    const res = await api.post('/tickets', form.value)
+    form.value.id = res.data.id
+  }
+  alert('Guardado. Puedes adjuntar archivos ahora.')
+  await load()
 }
 
 async function remove(id) {

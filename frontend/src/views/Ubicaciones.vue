@@ -5,8 +5,8 @@
       <button @click="showForm = true" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">+ Nueva</button>
     </div>
 
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <table class="w-full text-sm">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+      <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
             <th class="px-4 py-3 text-left text-gray-400">ID</th>
@@ -36,8 +36,8 @@
     </div>
 
     <!-- Modal -->
-    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg">
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-bold mb-4">{{ form.idUbicacion ? 'Editar' : 'Nueva' }} Ubicación</h2>
         <form @submit.prevent="save" class="space-y-3">
           <input v-model="form.calle" placeholder="Calle" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
@@ -49,6 +49,9 @@
             <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">Guardar</button>
           </div>
         </form>
+
+        <!-- Adjuntos -->
+        <FileUploader v-if="form.idUbicacion" tipo="Ubicacion" :id-padre="form.idUbicacion" />
       </div>
     </div>
   </div>
@@ -57,6 +60,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'
+import FileUploader from '../components/FileUploader.vue'
 
 const items = ref([])
 const showForm = ref(false)
@@ -74,10 +78,10 @@ async function save() {
   if (form.value.idUbicacion) {
     await api.put(`/ubicaciones/${form.value.idUbicacion}`, form.value)
   } else {
-    await api.post('/ubicaciones', form.value)
+    const res = await api.post('/ubicaciones', form.value)
+    form.value.idUbicacion = res.data.idUbicacion
   }
-  showForm.value = false
-  form.value = { calle: '', numero: '', propietario: '', numeroPredial: '' }
+  alert('Guardado.')
   await load()
 }
 

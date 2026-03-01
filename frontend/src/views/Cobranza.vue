@@ -9,8 +9,8 @@
       <input v-model="filterPeriodo" type="month" @change="load" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
     </div>
 
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <table class="w-full text-sm">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+      <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
             <th class="px-4 py-3 text-left text-gray-400">ID</th>
@@ -32,7 +32,8 @@
             <td class="px-4 py-3">{{ c.fechaCobro?.split('T')[0] }}</td>
             <td class="px-4 py-3">{{ c.medio }}</td>
             <td class="px-4 py-3">${{ c.monto?.toLocaleString() }}</td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 space-x-2">
+              <button @click="edit(c)" class="text-blue-400">✏️</button>
               <button @click="remove(c.id)" class="text-red-400">🗑️</button>
             </td>
           </tr>
@@ -41,8 +42,8 @@
     </div>
 
     <!-- Modal -->
-    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg">
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-bold mb-4">Registrar Pago</h2>
         <form @submit.prevent="save" class="space-y-3">
           <select v-model="form.idUbicacion" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
@@ -59,6 +60,9 @@
             <button type="submit" class="px-4 py-2 bg-emerald-600 rounded-lg text-sm font-medium">Guardar</button>
           </div>
         </form>
+
+        <!-- Adjuntos (Comprobante) -->
+        <FileUploader v-if="form.id" tipo="Cobranza" :id-padre="form.id" />
       </div>
     </div>
   </div>
@@ -67,6 +71,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'
+import FileUploader from '../components/FileUploader.vue'
 
 const items = ref([])
 const ubicaciones = ref([])
@@ -82,10 +87,16 @@ async function load() {
 onMounted(load)
 
 function openNew() { form.value = { idUbicacion: '', claveDepartamento: '', periodo: '', fechaCobro: '', medio: '', monto: 0 }; showForm.value = true }
+function edit(c) { form.value = { ...c }; showForm.value = true }
 
 async function save() {
-  await api.post('/cobranza', form.value)
-  showForm.value = false; await load()
+  if (form.value.id) await api.put(`/cobranza/${form.value.id}`, form.value)
+  else {
+    const res = await api.post('/cobranza', form.value)
+    form.value.id = res.data.id
+  }
+  alert('Guardado.')
+  await load()
 }
 
 async function remove(id) {

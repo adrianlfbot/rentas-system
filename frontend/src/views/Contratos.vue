@@ -10,11 +10,11 @@
     </div>
 
     <!-- Table -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
       <div class="p-4 flex justify-end">
         <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
       </div>
-      <table class="w-full text-sm">
+      <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
             <th class="px-4 py-3 text-left text-gray-400">ID</th>
@@ -35,8 +35,8 @@
             <td class="px-4 py-3">{{ c.fechaVencimiento?.split('T')[0] }}</td>
             <td class="px-4 py-3">{{ c.periodoEmision }}</td>
             <td class="px-4 py-3 space-x-2">
-              <button @click="edit(c)" class="text-blue-400">✏️</button>
-              <button @click="remove(c.id)" class="text-red-400">🗑️</button>
+              <button @click="edit(c)" class="text-blue-400 hover:text-blue-300">✏️</button>
+              <button @click="remove(c.id)" class="text-red-400 hover:text-red-300">🗑️</button>
             </td>
           </tr>
         </tbody>
@@ -44,8 +44,8 @@
     </div>
 
     <!-- Modal -->
-    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg">
+    <div v-if="showForm" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-bold mb-4">{{ form.id ? 'Editar' : 'Nuevo' }} Contrato</h2>
         <form @submit.prevent="save" class="space-y-3">
           <input v-model="form.nombre" placeholder="Nombre" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
@@ -60,6 +60,9 @@
             <button type="submit" class="px-4 py-2 bg-emerald-600 rounded-lg text-sm font-medium">Guardar</button>
           </div>
         </form>
+
+        <!-- Adjuntos -->
+        <FileUploader v-if="form.id" :tipo="tipoEntidad" :id-padre="form.id" />
       </div>
     </div>
   </div>
@@ -68,6 +71,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../api'
+import FileUploader from '../components/FileUploader.vue'
 
 const tabs = [
   { key: 'luz', label: '⚡ Luz' },
@@ -81,6 +85,11 @@ const form = ref({})
 const periodos = ['Semanal', 'Quincenal', 'Mensual', 'Bimestral', 'Semestral', 'Anual']
 
 const apiPath = computed(() => `/contratos/${activeTab.value}`)
+const tipoEntidad = computed(() => {
+  if (activeTab.value === 'luz') return 'ContratoLuz'
+  if (activeTab.value === 'agua') return 'ContratoAgua'
+  return 'ContratoInternet'
+})
 
 const tabConfig = {
   luz: { cols: ['RPU', 'Nº Medidor'], colKeys: ['rpu', 'numeroMedidor'], fields: [{ key: 'rpu', label: 'RPU' }, { key: 'numeroMedidor', label: 'Nº Medidor' }] },
@@ -101,8 +110,12 @@ function edit(c) { form.value = { ...c }; showForm.value = true }
 
 async function save() {
   if (form.value.id) await api.put(`${apiPath.value}/${form.value.id}`, form.value)
-  else await api.post(apiPath.value, form.value)
-  showForm.value = false; await load()
+  else {
+    const res = await api.post(apiPath.value, form.value)
+    form.value.id = res.data.id
+  }
+  alert('Guardado.')
+  await load()
 }
 
 async function remove(id) {

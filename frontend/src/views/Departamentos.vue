@@ -75,6 +75,9 @@
             <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">Guardar</button>
           </div>
         </form>
+
+        <!-- Adjuntos -->
+        <FileUploader v-if="form.id" tipo="Departamento" :id-padre="form.id" />
       </div>
     </div>
 
@@ -110,6 +113,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'
+import FileUploader from '../components/FileUploader.vue'
 
 const items = ref([])
 const ubicaciones = ref([])
@@ -140,8 +144,13 @@ function edit(d) { form.value = { ...d }; showForm.value = true }
 
 async function save() {
   if (form.value.id) await api.put(`/departamentos/${form.value.id}`, form.value)
-  else await api.post('/departamentos', form.value)
-  showForm.value = false
+  else {
+    const res = await api.post('/departamentos', form.value)
+    // Asignar ID para que aparezca el uploader sin cerrar
+    form.value.id = res.data.id
+  }
+  // No cerramos el modal inmediatamente para permitir adjuntar
+  alert('Guardado. Ahora puedes adjuntar archivos si lo deseas.')
   await load()
 }
 

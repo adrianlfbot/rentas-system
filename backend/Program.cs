@@ -5,12 +5,17 @@ using System.Text;
 using System.Text.Json.Serialization;
 using RentasApi.Data;
 
+using RentasApi.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // SQLite
 var dbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? Path.Combine(builder.Environment.ContentRootPath, "..", "rentas.db");
 builder.Services.AddDbContext<RentasContext>(opt =>
     opt.UseSqlite($"Data Source={dbPath}"));
+
+// Telegram Bot Service
+builder.Services.AddHostedService<TelegramBotService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "RentasSystem2026SuperSecretKeyMinimo32Chars!";
