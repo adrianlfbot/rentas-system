@@ -18,12 +18,15 @@ public class TelegramBotService : BackgroundService
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _http = new HttpClient { BaseAddress = new Uri($"https://api.telegram.org/bot{_token}/") };
+        _http = new HttpClient { 
+            BaseAddress = new Uri($"https://api.telegram.org/bot{_token}/"),
+            Timeout = TimeSpan.FromMinutes(10) // Timeout largo
+        };
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("🤖 Bot iniciado (Modo HttpClient)");
+        _logger.LogInformation("🤖 Bot iniciado (Modo HttpClient - Polling Robusto)");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -53,17 +56,17 @@ public class TelegramBotService : BackgroundService
     {
         try
         {
-            var response = await _http.GetAsync($"getUpdates?offset={_offset}&timeout=30", ct);
-            var json = await response.Content.ReadAsStringAsync(ct);
+            // Timeout corto en la URL para evitar bloqueos de red silenciosos
+            var response = await _http.GetAsync($"getUpdates?offset={_offset}&timeout=10", ct);
             
             if (!response.IsSuccessStatusCode) 
             {
-                _logger.LogError($"[Telegram Error] {response.StatusCode}: {json}");
+                var error = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError($"[Telegram Error] {response.StatusCode}: {error}");
                 return new List<Update>();
             }
 
-            // _logger.LogInformation($"[Telegram Response] {json}"); // Descomentar para debug extremo
-
+            var json = await response.Content.ReadAsStringAsync(ct);
             var result = JsonSerializer.Deserialize<TelegramResponse>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             return result?.Result ?? new List<Update>();
         }
@@ -151,7 +154,6 @@ public class TelegramBotService : BackgroundService
         await _http.PostAsJsonAsync("sendMessage", payload, ct);
     }
 
-    // Clases DTO para deserializar JSON de Telegram
     public class TelegramResponse { public bool Ok { get; set; } public List<Update> Result { get; set; } }
     public class Update { [JsonPropertyName("update_id")] public int UpdateId { get; set; } public Message Message { get; set; } }
     public class Message { public Chat Chat { get; set; } public string Text { get; set; } }
