@@ -11,6 +11,9 @@ public class Usuario
     public string Password { get; set; } = null!;
     public DateTime? FechaUltimoAcceso { get; set; }
     public string Tipo { get; set; } = null!; // Propietario | Inquilino
-    public string? INE { get; set; }
+    public int? INE { get; set; }  // FK to Adjuntos.ID
+    
+    [ForeignKey("INE")]
+    public Adjunto? INEAdjunto { get; set; }
     public string? Telefono { get; set; }
 }

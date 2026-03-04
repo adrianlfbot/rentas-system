@@ -63,6 +63,7 @@ const menuItems = computed(() => {
       { path: '/cobranza', icon: '💳', label: 'Cobranza' },
     )
     items.push({ path: '/usuarios', icon: '👥', label: 'Usuarios' })
+    items.push({ path: '/backups', icon: '💾', label: 'Backups' })
   }
   return items
 })

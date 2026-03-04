@@ -44,6 +44,24 @@
           <input v-model="form.numero" placeholder="Número" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
           <input v-model="form.propietario" placeholder="Propietario" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
           <input v-model="form.numeroPredial" placeholder="Número de Predial" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
+          
+          <!-- Contratos -->
+          <div class="border-t border-gray-700 pt-3 mt-3">
+            <h3 class="text-sm font-bold text-gray-400 mb-2">📋 Contratos</h3>
+            <select v-model="form.contratoLuzId" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm mb-2">
+              <option :value="null">⚡ Sin contrato de luz</option>
+              <option v-for="c in contratosLuz" :key="c.id" :value="c.id">⚡ {{ c.nombre }} ({{ c.rpu }})</option>
+            </select>
+            <select v-model="form.contratoAguaId" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm mb-2">
+              <option :value="null">💧 Sin contrato de agua</option>
+              <option v-for="c in contratosAgua" :key="c.id" :value="c.id">💧 {{ c.nombre }} ({{ c.numeroContrato }})</option>
+            </select>
+            <select v-model="form.contratoInternetId" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+              <option :value="null">🌐 Sin contrato de internet</option>
+              <option v-for="c in contratosInternet" :key="c.id" :value="c.id">🌐 {{ c.nombre }} ({{ c.numeroContrato }})</option>
+            </select>
+          </div>
+
           <div class="flex gap-2 justify-end mt-4">
             <button type="button" @click="showForm = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
             <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">Guardar</button>
@@ -64,9 +82,23 @@ import FileUploader from '../components/FileUploader.vue'
 
 const items = ref([])
 const showForm = ref(false)
-const form = ref({ calle: '', numero: '', propietario: '', numeroPredial: '' })
+const form = ref({ calle: '', numero: '', propietario: '', numeroPredial: '', contratoLuzId: null, contratoAguaId: null, contratoInternetId: null })
+const contratosLuz = ref([])
+const contratosAgua = ref([])
+const contratosInternet = ref([])
 
-async function load() { items.value = (await api.get('/ubicaciones')).data }
+async function load() {
+  const [resUbi, resLuz, resAgua, resInternet] = await Promise.all([
+    api.get('/ubicaciones'),
+    api.get('/contratos/luz'),
+    api.get('/contratos/agua'),
+    api.get('/contratos/internet')
+  ])
+  items.value = resUbi.data
+  contratosLuz.value = resLuz.data
+  contratosAgua.value = resAgua.data
+  contratosInternet.value = resInternet.data
+}
 onMounted(load)
 
 function edit(u) {

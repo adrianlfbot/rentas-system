@@ -10,6 +10,7 @@ const routes = [
   { path: '/tablero', name: 'Tablero', component: () => import('./views/Tablero.vue'), meta: { auth: true, role: 'Propietario' } },
   { path: '/tickets', name: 'Tickets', component: () => import('./views/Tickets.vue'), meta: { auth: true } },
   { path: '/usuarios', name: 'Usuarios', component: () => import('./views/Usuarios.vue'), meta: { auth: true, role: 'Propietario' } },
+  { path: '/backups', name: 'Backups', component: () => import('./views/Backups.vue'), meta: { auth: true, role: 'Propietario' } },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

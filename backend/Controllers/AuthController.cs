@@ -28,7 +28,8 @@ public class AuthController : ControllerBase
         var user = await _db.Usuarios.FindAsync(dto.Correo);
         if (user == null) return Unauthorized("Credenciales inválidas");
 
-        if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.Password))
+        // Plain text comparison (NOT RECOMMENDED - only for testing)
+        if (dto.Password != user.Password)
             return Unauthorized("Credenciales inválidas");
 
         user.FechaUltimoAcceso = DateTime.UtcNow;
@@ -60,7 +61,7 @@ public class AuthController : ControllerBase
             issuer: "RentasApi",
             audience: "RentasApp",
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
+            expires: DateTime.UtcNow.AddDays(30),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

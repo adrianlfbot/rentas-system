@@ -71,6 +71,14 @@ public class DepartamentosController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Departamento depto)
     {
+        // Validar que el inquilino exista si se especificó
+        if (!string.IsNullOrEmpty(depto.InquilinoCorreo))
+        {
+            var inquilino = await _db.Usuarios.FindAsync(depto.InquilinoCorreo);
+            if (inquilino == null)
+                return BadRequest(new { message = $"El inquilino '{depto.InquilinoCorreo}' no está registrado. Primero debes darlo de alta en Usuarios." });
+        }
+
         _db.Departamentos.Add(depto);
         await _db.SaveChangesAsync();
 
@@ -93,6 +101,14 @@ public class DepartamentosController : ControllerBase
     {
         var d = await _db.Departamentos.FindAsync(id);
         if (d == null) return NotFound();
+
+        // Validar que el inquilino exista si se especificó
+        if (!string.IsNullOrEmpty(updated.InquilinoCorreo))
+        {
+            var inquilino = await _db.Usuarios.FindAsync(updated.InquilinoCorreo);
+            if (inquilino == null)
+                return BadRequest(new { message = $"El inquilino '{updated.InquilinoCorreo}' no está registrado. Primero debes darlo de alta en Usuarios." });
+        }
 
         if (d.InquilinoCorreo != updated.InquilinoCorreo)
         {

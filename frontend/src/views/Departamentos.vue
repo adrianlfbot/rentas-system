@@ -13,6 +13,7 @@
             <th class="px-4 py-3 text-left text-gray-400">Clave</th>
             <th class="px-4 py-3 text-left text-gray-400">Descripción</th>
             <th class="px-4 py-3 text-left text-gray-400">Renta</th>
+            <th class="px-4 py-3 text-left text-gray-400">Día Cobro</th>
             <th class="px-4 py-3 text-left text-gray-400">Contrato Luz</th>
             <th class="px-4 py-3 text-left text-gray-400">Inquilino</th>
             <th class="px-4 py-3 text-left text-gray-400">Acciones</th>
@@ -24,6 +25,7 @@
             <td class="px-4 py-3 font-mono">{{ d.clave }}</td>
             <td class="px-4 py-3">{{ d.descripcion }}</td>
             <td class="px-4 py-3">${{ d.montoRenta?.toLocaleString() }}</td>
+            <td class="px-4 py-3 text-center">{{ d.diaVencimiento || '—' }}</td>
             <td class="px-4 py-3">
               <span v-if="d.contratoLuz" class="text-yellow-400">⚡ {{ d.contratoLuz.nombre }}</span>
               <span v-else class="text-gray-600">—</span>
@@ -143,15 +145,22 @@ function openNew() { form.value = { ...emptyForm }; showForm.value = true }
 function edit(d) { form.value = { ...d }; showForm.value = true }
 
 async function save() {
-  if (form.value.id) await api.put(`/departamentos/${form.value.id}`, form.value)
-  else {
-    const res = await api.post('/departamentos', form.value)
-    // Asignar ID para que aparezca el uploader sin cerrar
-    form.value.id = res.data.id
+  try {
+    if (form.value.id) {
+      await api.put(`/departamentos/${form.value.id}`, form.value)
+    } else {
+      const res = await api.post('/departamentos', form.value)
+      // Asignar ID para que aparezca el uploader sin cerrar
+      form.value.id = res.data.id
+    }
+    // No cerramos el modal inmediatamente para permitir adjuntar
+    alert('Guardado. Ahora puedes adjuntar archivos si lo deseas.')
+    await load()
+  } catch (e) {
+    const msg = e.response?.data?.message || e.response?.data || e.message || 'Error desconocido'
+    alert('❌ Error al guardar: ' + msg)
+    console.error('Error guardando departamento:', e)
   }
-  // No cerramos el modal inmediatamente para permitir adjuntar
-  alert('Guardado. Ahora puedes adjuntar archivos si lo deseas.')
-  await load()
 }
 
 async function remove(id) {

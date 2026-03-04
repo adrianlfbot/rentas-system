@@ -1,0 +1,20 @@
+{
+  "name": "rentas-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Rentas SQLite database (read-only)",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "rentas-mcp": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["mcp", "sqlite", "rentas"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^11.0.0"
+  }
+}

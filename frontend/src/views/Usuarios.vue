@@ -46,7 +46,23 @@
             <option>Propietario</option><option>Inquilino</option>
           </select>
           <input v-model="form.telefono" placeholder="Teléfono" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
-          <input v-model="form.ine" placeholder="INE" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          <!-- INE Upload -->
+          <div class="space-y-2">
+            <label class="text-sm text-gray-400">INE (Identificación)</label>
+            <div v-if="form.ine" class="flex items-center gap-2 bg-gray-800 p-2 rounded-lg">
+              <span class="text-emerald-400 text-sm">✅ INE adjunto (ID: {{ form.ine }})</span>
+              <button type="button" @click="viewINE" class="text-blue-400 text-sm hover:underline">Ver</button>
+              <button type="button" @click="form.ine = null" class="text-red-400 text-sm">Quitar</button>
+            </div>
+            <div v-else class="flex gap-2">
+              <input type="file" ref="ineInput" accept="image/*,.pdf" 
+                class="text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-300 hover:file:bg-gray-600" />
+              <button type="button" @click="uploadINE" :disabled="uploadingINE" 
+                class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs font-medium disabled:opacity-50">
+                {{ uploadingINE ? 'Subiendo...' : '📎 Adjuntar' }}
+              </button>
+            </div>
+          </div>
           <div class="flex gap-2 justify-end mt-4">
             <button type="button" @click="showForm = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
             <button type="submit" class="px-4 py-2 bg-emerald-600 rounded-lg text-sm font-medium">Guardar</button>
@@ -64,13 +80,49 @@ import api from '../api'
 const items = ref([])
 const showForm = ref(false)
 const isEdit = ref(false)
-const form = ref({ correo: '', password: '', tipo: 'Inquilino', telefono: '', ine: '' })
+const form = ref({ correo: '', password: '', tipo: 'Inquilino', telefono: '', ine: null })
+const ineInput = ref(null)
+const uploadingINE = ref(false)
 
 async function load() { items.value = (await api.get('/usuarios')).data }
 onMounted(load)
 
-function openNew() { isEdit.value = false; form.value = { correo: '', password: '', tipo: 'Inquilino', telefono: '', ine: '' }; showForm.value = true }
-function edit(u) { isEdit.value = true; form.value = { ...u, password: '' }; showForm.value = true }
+function openNew() { isEdit.value = false; form.value = { correo: '', password: '', tipo: 'Inquilino', telefono: '', ine: null }; showForm.value = true }
+function edit(u) { isEdit.value = true; form.value = { ...u, password: '', ine: u.ine || null }; showForm.value = true }
+
+async function uploadINE() {
+  const file = ineInput.value?.files[0]
+  if (!file) return alert('Selecciona un archivo')
+  
+  uploadingINE.value = true
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  try {
+    // Subir como adjunto tipo "INE" con idPadre temporal 0
+    const res = await api.post('/adjuntos/INE/0', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    form.value.ine = res.data.id
+    ineInput.value.value = ''
+  } catch (e) {
+    alert('Error al subir INE')
+    console.error(e)
+  } finally {
+    uploadingINE.value = false
+  }
+}
+
+async function viewINE() {
+  if (!form.value.ine) return
+  try {
+    const response = await api.get(`/adjuntos/download/${form.value.ine}`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    window.open(url, '_blank')
+  } catch (e) {
+    alert('Error al ver INE')
+  }
+}
 
 async function save() {
   if (isEdit.value) await api.put(`/usuarios/${form.value.correo}`, form.value)

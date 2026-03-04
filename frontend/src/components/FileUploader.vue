@@ -14,11 +14,14 @@
       <p v-if="files.length === 0" class="text-gray-500 text-xs italic">No hay archivos adjuntos.</p>
     </div>
 
-    <!-- Subir nuevo -->
-    <div v-if="idPadre" class="flex gap-2">
-      <input type="file" ref="fileInput" class="text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-300 hover:file:bg-gray-600" />
+    <!-- Subir nuevo (múltiples archivos) -->
+    <div v-if="idPadre" class="flex gap-2 flex-wrap">
+      <input type="file" ref="fileInput" multiple class="text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-300 hover:file:bg-gray-600" />
       <button @click="upload" :disabled="uploading" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 rounded text-xs font-medium disabled:opacity-50">
-        {{ uploading ? '...' : 'Subir' }}
+        {{ uploading ? `Subiendo ${uploadProgress}...` : 'Subir' }}
+      </button>
+      <button v-if="files.length > 1" @click="downloadAll" :disabled="downloading" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs font-medium disabled:opacity-50">
+        {{ downloading ? 'Descargando...' : '📥 Descargar todos' }}
       </button>
     </div>
     <p v-else class="text-yellow-500 text-xs">Guarda el registro primero para adjuntar archivos.</p>
@@ -37,6 +40,8 @@ const props = defineProps({
 const files = ref([])
 const fileInput = ref(null)
 const uploading = ref(false)
+const uploadProgress = ref('')
+const downloading = ref(false)
 
 async function load() {
   if (!props.idPadre) {
@@ -74,23 +79,44 @@ async function downloadFile(file) {
 }
 
 async function upload() {
-  const file = fileInput.value?.files[0]
-  if (!file) return
+  const fileList = fileInput.value?.files
+  if (!fileList || fileList.length === 0) return
 
   uploading.value = true
-  const formData = new FormData()
-  formData.append('file', file)
+  let uploaded = 0
+  const total = fileList.length
 
   try {
-    await api.post(`/adjuntos/${props.tipo}/${props.idPadre}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    for (const file of fileList) {
+      uploadProgress.value = `${++uploaded}/${total}`
+      const formData = new FormData()
+      formData.append('file', file)
+      await api.post(`/adjuntos/${props.tipo}/${props.idPadre}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+    }
     fileInput.value.value = '' // Reset input
     await load()
   } catch (e) {
     alert('Error al subir archivo')
   } finally {
     uploading.value = false
+    uploadProgress.value = ''
+  }
+}
+
+async function downloadAll() {
+  if (files.value.length === 0) return
+  
+  downloading.value = true
+  try {
+    for (const file of files.value) {
+      await downloadFile(file)
+      // Pequeña pausa entre descargas
+      await new Promise(r => setTimeout(r, 300))
+    }
+  } finally {
+    downloading.value = false
   }
 }
 
