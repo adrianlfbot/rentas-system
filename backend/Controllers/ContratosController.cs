@@ -31,6 +31,82 @@ public class ContratoLuzController : ControllerBase
     }
 
     [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var c = await _db.ContratoLuz.FindAsync(id); if (c == null) return NotFound(); _db.ContratoLuz.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+
+    // === EXPORTAR CSV ===
+    [HttpGet("exportar")]
+    public async Task<IActionResult> Exportar()
+    {
+        var items = await _db.ContratoLuz.ToListAsync();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("ID,RPU,Nombre,Email,NumeroMedidor,FechaVencimiento,PeriodoEmision");
+        foreach (var c in items)
+            sb.AppendLine($"{c.ID},{Csv(c.RPU)},{Csv(c.Nombre)},{Csv(c.Email)},{Csv(c.NumeroMedidor)},{c.FechaVencimiento?.ToString("yyyy-MM-dd")},{Csv(c.PeriodoEmision)}");
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", "contratos_luz.csv");
+    }
+
+    // === IMPORTAR CSV (upsert) ===
+    [HttpPost("importar")]
+    public async Task<IActionResult> Importar(IFormFile archivo)
+    {
+        if (archivo == null || archivo.Length == 0) return BadRequest("Archivo vacío.");
+        int insertados = 0, actualizados = 0, errores = 0;
+        using var reader = new System.IO.StreamReader(archivo.OpenReadStream());
+        var header = await reader.ReadLineAsync(); // saltar encabezado
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var cols = ParseCsvLine(line);
+            if (cols.Length < 7) { errores++; continue; }
+            try
+            {
+                bool tieneId = int.TryParse(cols[0], out int id) && id > 0;
+                if (tieneId)
+                {
+                    var existing = await _db.ContratoLuz.FindAsync(id);
+                    if (existing != null)
+                    {
+                        existing.RPU = cols[1]; existing.Nombre = cols[2]; existing.Email = cols[3];
+                        existing.NumeroMedidor = cols[4];
+                        existing.FechaVencimiento = string.IsNullOrEmpty(cols[5]) ? null : DateTime.Parse(cols[5]);
+                        existing.PeriodoEmision = cols[6];
+                        actualizados++;
+                    }
+                    else { errores++; }
+                }
+                else
+                {
+                    var nuevo = new ContratoLuz
+                    {
+                        RPU = cols[1], Nombre = cols[2], Email = cols[3], NumeroMedidor = cols[4],
+                        FechaVencimiento = string.IsNullOrEmpty(cols[5]) ? null : DateTime.Parse(cols[5]),
+                        PeriodoEmision = cols[6]
+                    };
+                    _db.ContratoLuz.Add(nuevo);
+                    insertados++;
+                }
+            }
+            catch { errores++; }
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new { insertados, actualizados, errores });
+    }
+
+    private static string Csv(string? v) => v == null ? "" : v.Contains(',') ? $"\"{v}\"" : v;
+    private static string[] ParseCsvLine(string line)
+    {
+        var result = new System.Collections.Generic.List<string>();
+        bool inQuotes = false; var current = new System.Text.StringBuilder();
+        foreach (var ch in line)
+        {
+            if (ch == '"') { inQuotes = !inQuotes; }
+            else if (ch == ',' && !inQuotes) { result.Add(current.ToString().Trim()); current.Clear(); }
+            else { current.Append(ch); }
+        }
+        result.Add(current.ToString().Trim());
+        return result.ToArray();
+    }
 }
 
 // === CONTRATO AGUA ===

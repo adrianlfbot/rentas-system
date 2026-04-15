@@ -11,7 +11,14 @@
 
     <!-- Table -->
     <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
-      <div class="p-4 flex justify-end">
+      <div class="p-4 flex justify-end gap-2">
+        <template v-if="activeTab === 'luz'">
+          <button @click="exportarCsv" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium">⬇ Exportar CSV</button>
+          <label class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium cursor-pointer">
+            ⬆ Importar CSV
+            <input type="file" accept=".csv" class="hidden" @change="importarCsv" />
+          </label>
+        </template>
         <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
       </div>
       <table class="w-full text-sm min-w-[800px]">
@@ -120,5 +127,32 @@ async function save() {
 
 async function remove(id) {
   if (confirm('¿Eliminar contrato?')) { await api.delete(`${apiPath.value}/${id}`); await load() }
+}
+
+// === EXPORTAR CSV ===
+async function exportarCsv() {
+  const res = await api.get('/contratos/luz/exportar', { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url; a.download = 'contratos_luz.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// === IMPORTAR CSV ===
+async function importarCsv(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const fd = new FormData()
+  fd.append('archivo', file)
+  try {
+    const res = await api.post('/contratos/luz/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const { insertados, actualizados, errores } = res.data
+    alert(`✅ Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.`)
+    await load()
+  } catch (err) {
+    alert('Error al importar: ' + (err.response?.data || err.message))
+  } finally {
+    e.target.value = '' // reset input
+  }
 }
 </script>

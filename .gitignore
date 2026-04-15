@@ -1,0 +1,19 @@
+# Build output
+backend/bin/
+backend/obj/
+dist/
+frontend/node_modules/
+frontend/dist/
+
+# DB (se restaura del backup)
+rentas.db
+rentas.db-shm
+rentas.db-wal
+
+# Deploy local
+Caddyfile
+start-backend.sh
+
+# Certs
+*.crt
+*.key
