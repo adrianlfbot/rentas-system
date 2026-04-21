@@ -2,7 +2,14 @@
   <div class="p-8">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Departamentos</h1>
-      <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">+ Nuevo</button>
+      <div class="flex gap-2">
+        <button @click="exportarCsv" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium">⬇ Exportar CSV</button>
+        <label class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium cursor-pointer">
+          ⬆ Importar CSV
+          <input type="file" accept=".csv" class="hidden" @change="importarCsv" />
+        </label>
+        <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">+ Nuevo</button>
+      </div>
     </div>
 
     <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
@@ -171,6 +178,33 @@ async function remove(id) {
   if (await confirmDialog({ title: '¿Eliminar departamento?', message: 'Se eliminará el departamento permanentemente.' })) {
     try { await api.delete(`/departamentos/${id}`); await load(); success('Departamento eliminado.') }
     catch (err) { toastError(err.response?.data || err.message) }
+  }
+}
+
+// === EXPORTAR CSV ===
+async function exportarCsv() {
+  const res = await api.get('/departamentos/exportar', { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url; a.download = 'departamentos.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// === IMPORTAR CSV ===
+async function importarCsv(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const fd = new FormData()
+  fd.append('archivo', file)
+  try {
+    const res = await api.post('/departamentos/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const { insertados, actualizados, errores } = res.data
+    success(`Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.`)
+    await load()
+  } catch (err) {
+    toastError('Error al importar: ' + (err.response?.data || err.message))
+  } finally {
+    e.target.value = ''
   }
 }
 

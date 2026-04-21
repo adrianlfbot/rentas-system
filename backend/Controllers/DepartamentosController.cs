@@ -157,4 +157,101 @@ public class DepartamentosController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    // === EXPORTAR CSV ===
+    [HttpGet("exportar")]
+    public async Task<IActionResult> Exportar()
+    {
+        var items = await _db.Departamentos
+            .Include(d => d.Ubicacion)
+            .Include(d => d.ContratoLuz)
+            .ToListAsync();
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("ID,IDUbicacion,Ubicacion,Clave,Descripcion,Cuartos,Banos,Estacionamiento,Extras,MontoRenta,CuotaAgua,ContratoLuzId,RPUContrato,DiaVencimiento,InquilinoCorreo");
+        foreach (var d in items)
+        {
+            var ubi = d.Ubicacion != null ? $"{d.Ubicacion.Calle} {d.Ubicacion.Numero}" : "";
+            sb.AppendLine($"{d.ID},{d.IDUbicacion},{Csv(ubi)},{Csv(d.Clave)},{Csv(d.Descripcion)},{d.Cuartos},{d.Banos},{d.Estacionamiento},{Csv(d.Extras)},{d.MontoRenta},{d.CuotaAgua},{d.ContratoLuzId},{Csv(d.ContratoLuz?.RPU)},{d.DiaVencimiento},{Csv(d.InquilinoCorreo)}");
+        }
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", "departamentos.csv");
+    }
+
+    // === IMPORTAR CSV (upsert por ID) ===
+    [HttpPost("importar")]
+    public async Task<IActionResult> Importar(IFormFile archivo)
+    {
+        if (archivo == null || archivo.Length == 0) return BadRequest("Archivo vacío.");
+        int insertados = 0, actualizados = 0, errores = 0;
+        using var reader = new System.IO.StreamReader(archivo.OpenReadStream());
+        await reader.ReadLineAsync(); // saltar encabezado
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var cols = ParseCsvLine(line);
+            if (cols.Length < 15) { errores++; continue; }
+            try
+            {
+                bool tieneId = int.TryParse(cols[0], out int id) && id > 0;
+                if (tieneId)
+                {
+                    var existing = await _db.Departamentos.FindAsync(id);
+                    if (existing == null) { errores++; continue; }
+                    existing.IDUbicacion   = int.TryParse(cols[1], out int u) ? u : existing.IDUbicacion;
+                    existing.Clave        = cols[3];
+                    existing.Descripcion  = cols[4];
+                    existing.Cuartos      = int.TryParse(cols[5], out int c) ? c : existing.Cuartos;
+                    existing.Banos        = int.TryParse(cols[6], out int b) ? b : existing.Banos;
+                    existing.Estacionamiento = int.TryParse(cols[7], out int e) ? e : existing.Estacionamiento;
+                    existing.Extras       = cols[8];
+                    existing.MontoRenta   = double.TryParse(cols[9], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double mr) ? mr : existing.MontoRenta;
+                    existing.CuotaAgua    = double.TryParse(cols[10], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double ca) ? ca : existing.CuotaAgua;
+                    existing.ContratoLuzId = int.TryParse(cols[11], out int cl) ? cl : (int?)null;
+                    existing.DiaVencimiento = int.TryParse(cols[13], out int dv) ? dv : existing.DiaVencimiento;
+                    existing.InquilinoCorreo = string.IsNullOrEmpty(cols[14]) ? null : cols[14];
+                    actualizados++;
+                }
+                else
+                {
+                    _db.Departamentos.Add(new Departamento
+                    {
+                        IDUbicacion      = int.Parse(cols[1]),
+                        Clave            = cols[3],
+                        Descripcion      = cols[4],
+                        Cuartos          = int.TryParse(cols[5], out int c) ? c : 0,
+                        Banos            = int.TryParse(cols[6], out int b) ? b : 0,
+                        Estacionamiento  = int.TryParse(cols[7], out int es) ? es : 0,
+                        Extras           = cols[8],
+                        MontoRenta       = double.TryParse(cols[9], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double mr) ? mr : 0,
+                        CuotaAgua        = double.TryParse(cols[10], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double ca) ? ca : 0,
+                        ContratoLuzId    = int.TryParse(cols[11], out int cl) ? cl : (int?)null,
+                        DiaVencimiento   = int.TryParse(cols[13], out int dv) ? dv : 1,
+                        InquilinoCorreo  = string.IsNullOrEmpty(cols[14]) ? null : cols[14]
+                    });
+                    insertados++;
+                }
+            }
+            catch { errores++; }
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new { insertados, actualizados, errores });
+    }
+
+    private static string Csv(string? v) => v == null ? "" : v.Contains(',') ? $"\"{v}\"" : v;
+    private static string[] ParseCsvLine(string line)
+    {
+        var result = new System.Collections.Generic.List<string>();
+        bool inQuotes = false;
+        var current = new System.Text.StringBuilder();
+        foreach (var ch in line)
+        {
+            if (ch == '"') { inQuotes = !inQuotes; }
+            else if (ch == ',' && !inQuotes) { result.Add(current.ToString().Trim()); current.Clear(); }
+            else { current.Append(ch); }
+        }
+        result.Add(current.ToString().Trim());
+        return result.ToArray();
+    }
 }
