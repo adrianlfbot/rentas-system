@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IO.Compression;
 
 namespace RentasApi.Controllers;
 
@@ -24,13 +25,14 @@ public class BackupsController : ControllerBase
     [HttpGet]
     public IActionResult List()
     {
-        var files = Directory.GetFiles(_backupDir, "*.db")
+        // Lista ZIPs generados por el cron y por el botón manual
+        var files = Directory.GetFiles(_backupDir, "*.zip")
             .Select(f => new FileInfo(f))
-            .OrderByDescending(f => f.CreationTime)
-            .Select(f => new 
+            .OrderByDescending(f => f.LastWriteTime)
+            .Select(f => new
             {
                 filename = f.Name,
-                date = f.CreationTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                date = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"),
                 size = FormatSize(f.Length)
             })
             .ToList();
@@ -43,12 +45,13 @@ public class BackupsController : ControllerBase
     {
         try
         {
-            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-            var backupFile = Path.Combine(_backupDir, $"rentas-{timestamp}.db");
-            
-            System.IO.File.Copy(_dbPath, backupFile, overwrite: true);
-            
-            return Ok(new { message = "Backup creado", filename = Path.GetFileName(backupFile) });
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+            var zipFile = Path.Combine(_backupDir, $"rentas_{timestamp}.zip");
+
+            using (var zip = System.IO.Compression.ZipFile.Open(zipFile, System.IO.Compression.ZipArchiveMode.Create))
+                zip.CreateEntryFromFile(_dbPath, "rentas.db");
+
+            return Ok(new { message = "Backup creado", filename = Path.GetFileName(zipFile) });
         }
         catch (Exception ex)
         {
@@ -87,8 +90,11 @@ public class BackupsController : ControllerBase
             var preRestoreBackup = Path.Combine(_backupDir, $"pre-restore-{timestamp}.db");
             System.IO.File.Copy(_dbPath, preRestoreBackup, overwrite: true);
 
-            // Restore the backup
-            System.IO.File.Copy(backupFile, _dbPath, overwrite: true);
+            // Restaurar: extraer el .db del ZIP
+            using var zip = ZipFile.OpenRead(backupFile);
+            var entry = zip.Entries.FirstOrDefault(e => e.Name.EndsWith(".db"));
+            if (entry == null) return BadRequest(new { message = "El ZIP no contiene un archivo .db" });
+            entry.ExtractToFile(_dbPath, overwrite: true);
             
             return Ok(new { message = "Backup restaurado exitosamente" });
         }
