@@ -31,7 +31,16 @@ public class ContratoLuzController : ControllerBase
         await _db.SaveChangesAsync(); return NoContent();
     }
 
-    [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var c = await _db.ContratoLuz.FindAsync(id); if (c == null) return NotFound(); _db.ContratoLuz.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var c = await _db.ContratoLuz.FindAsync(id);
+        if (c == null) return NotFound();
+        try { _db.ContratoLuz.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+        catch (Exception ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true || ex.Message.Contains("FOREIGN KEY"))
+        { return Conflict("No se puede eliminar el contrato porque está asignado a una ubicación o departamento. Primero desasígnalo."); }
+        catch (Exception ex) { return StatusCode(500, "Error al eliminar: " + ex.Message); }
+    }
 
     // === EXPORTAR CSV ===
     [HttpGet("exportar")]
@@ -249,7 +258,16 @@ public class ContratoAguaController : ControllerBase
         await _db.SaveChangesAsync(); return NoContent();
     }
 
-    [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var c = await _db.ContratoAgua.FindAsync(id); if (c == null) return NotFound(); _db.ContratoAgua.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var c = await _db.ContratoAgua.FindAsync(id);
+        if (c == null) return NotFound();
+        try { _db.ContratoAgua.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+        catch (Exception ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true || ex.Message.Contains("FOREIGN KEY"))
+        { return Conflict("No se puede eliminar el contrato porque está asignado a una ubicación. Primero desasígnalo."); }
+        catch (Exception ex) { return StatusCode(500, "Error al eliminar: " + ex.Message); }
+    }
 }
 
 // === CONTRATO INTERNET ===
@@ -276,5 +294,14 @@ public class ContratoInternetController : ControllerBase
         await _db.SaveChangesAsync(); return NoContent();
     }
 
-    [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var c = await _db.ContratoInternet.FindAsync(id); if (c == null) return NotFound(); _db.ContratoInternet.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var c = await _db.ContratoInternet.FindAsync(id);
+        if (c == null) return NotFound();
+        try { _db.ContratoInternet.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
+        catch (Exception ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true || ex.Message.Contains("FOREIGN KEY"))
+        { return Conflict("No se puede eliminar el contrato porque está asignado a una ubicación. Primero desasígnalo."); }
+        catch (Exception ex) { return StatusCode(500, "Error al eliminar: " + ex.Message); }
+    }
 }

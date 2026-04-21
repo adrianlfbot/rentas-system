@@ -138,7 +138,8 @@ async function remove(id) {
       await load()
       success('Contrato eliminado.')
     } catch (err) {
-      toastError('No se pudo eliminar: ' + (err.response?.data || err.message))
+      const msg = err.response?.data || err.message || 'Error desconocido'
+      toastError(typeof msg === 'string' ? msg : JSON.stringify(msg))
     }
   }
 }
