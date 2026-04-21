@@ -9,7 +9,7 @@
       <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-gray-400">ID</th>
+
             <th class="px-4 py-3 text-left text-gray-400">Fecha</th>
             <th class="px-4 py-3 text-left text-gray-400">Creado por</th>
             <th class="px-4 py-3 text-left text-gray-400">Prioridad</th>
@@ -20,7 +20,7 @@
         </thead>
         <tbody>
           <tr v-for="t in items" :key="t.id" class="border-t border-gray-800 hover:bg-gray-800/30">
-            <td class="px-4 py-3">{{ t.id }}</td>
+
             <td class="px-4 py-3">{{ t.fechaCreacion?.split('T')[0] }}</td>
             <td class="px-4 py-3">{{ t.usuarioCreo }}</td>
             <td class="px-4 py-3">

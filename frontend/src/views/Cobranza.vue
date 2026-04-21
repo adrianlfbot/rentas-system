@@ -13,7 +13,7 @@
       <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-gray-400">ID</th>
+
             <th class="px-4 py-3 text-left text-gray-400">Ubicación</th>
             <th class="px-4 py-3 text-left text-gray-400">Depto</th>
             <th class="px-4 py-3 text-left text-gray-400">Periodo</th>
@@ -25,7 +25,7 @@
         </thead>
         <tbody>
           <tr v-for="c in items" :key="c.id" class="border-t border-gray-800 hover:bg-gray-800/30">
-            <td class="px-4 py-3">{{ c.id }}</td>
+
             <td class="px-4 py-3">{{ c.ubicacion?.calle }} {{ c.ubicacion?.numero }}</td>
             <td class="px-4 py-3 font-mono">{{ c.claveDepartamento }}</td>
             <td class="px-4 py-3">{{ c.periodo }}</td>

@@ -9,7 +9,7 @@
       <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-gray-400">ID</th>
+
             <th class="px-4 py-3 text-left text-gray-400">Calle</th>
             <th class="px-4 py-3 text-left text-gray-400">Número</th>
             <th class="px-4 py-3 text-left text-gray-400">Propietario</th>
@@ -20,7 +20,7 @@
         </thead>
         <tbody>
           <tr v-for="u in items" :key="u.idUbicacion" class="border-t border-gray-800 hover:bg-gray-800/30">
-            <td class="px-4 py-3">{{ u.idUbicacion }}</td>
+
             <td class="px-4 py-3">{{ u.calle }}</td>
             <td class="px-4 py-3">{{ u.numero }}</td>
             <td class="px-4 py-3">{{ u.propietario }}</td>

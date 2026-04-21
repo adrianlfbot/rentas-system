@@ -28,7 +28,6 @@
       <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-gray-400">ID</th>
             <th class="px-4 py-3 text-left text-gray-400">Nombre</th>
             <th v-if="activeTab === 'luz'" class="px-4 py-3 text-left text-gray-400">Email</th>
             <th v-for="col in extraCols" :key="col" class="px-4 py-3 text-left text-gray-400">{{ col }}</th>
@@ -39,7 +38,6 @@
         </thead>
         <tbody>
           <tr v-for="c in items" :key="c.id" class="border-t border-gray-800 hover:bg-gray-800/30">
-            <td class="px-4 py-3">{{ c.id }}</td>
             <td class="px-4 py-3">{{ c.nombre }}</td>
             <td v-if="activeTab === 'luz'" class="px-4 py-3">{{ c.email || '—' }}</td>
             <td v-for="col in extraColKeys" :key="col" class="px-4 py-3">{{ c[col] }}</td>
