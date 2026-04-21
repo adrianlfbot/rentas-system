@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "RlByw/W1wbk=",
+  "dgSpecHash": "p5q23GYZris=",
   "success": true,
-  "projectFilePath": "/home/admin/Projects/rentas-system/backend/RentasApi.csproj",
+  "projectFilePath": "/home/admin/rentas-system/backend/RentasApi.csproj",
   "expectedPackageFiles": [
     "/home/admin/.nuget/packages/bcrypt.net-next/4.1.0/bcrypt.net-next.4.1.0.nupkg.sha512",
     "/home/admin/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/9.0.3/microsoft.aspnetcore.authentication.jwtbearer.9.0.3.nupkg.sha512",

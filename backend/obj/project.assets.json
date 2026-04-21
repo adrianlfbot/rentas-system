@@ -1945,11 +1945,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/admin/Projects/rentas-system/backend/RentasApi.csproj",
+      "projectUniqueName": "/home/admin/rentas-system/backend/RentasApi.csproj",
       "projectName": "RentasApi",
-      "projectPath": "/home/admin/Projects/rentas-system/backend/RentasApi.csproj",
+      "projectPath": "/home/admin/rentas-system/backend/RentasApi.csproj",
       "packagesPath": "/home/admin/.nuget/packages/",
-      "outputPath": "/home/admin/Projects/rentas-system/backend/obj/",
+      "outputPath": "/home/admin/rentas-system/backend/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/admin/.nuget/NuGet/NuGet.Config"
@@ -2022,7 +2022,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.311/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/home/admin/.dotnet/sdk/9.0.312/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
