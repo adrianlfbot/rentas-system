@@ -36,9 +36,14 @@ public class ContratoLuzController : ControllerBase
     {
         var c = await _db.ContratoLuz.FindAsync(id);
         if (c == null) return NotFound();
+        // Verificar si hay ubicaciones o departamentos usando este contrato
+        var ubicacion = await _db.Ubicaciones.FirstOrDefaultAsync(u => u.ContratoLuzId == id);
+        if (ubicacion != null)
+            return Conflict($"No se puede eliminar: está asignado a la ubicación '{ubicacion.Calle} {ubicacion.Numero}'. Primero desasígnalo desde Ubicaciones.");
+        var depto = await _db.Departamentos.FirstOrDefaultAsync(d => d.ContratoLuzId == id);
+        if (depto != null)
+            return Conflict($"No se puede eliminar: está asignado al departamento '{depto.Clave}'. Primero desasígnalo desde Departamentos.");
         try { _db.ContratoLuz.Remove(c); await _db.SaveChangesAsync(); return NoContent(); }
-        catch (Exception ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true || ex.Message.Contains("FOREIGN KEY"))
-        { return Conflict("No se puede eliminar el contrato porque está asignado a una ubicación o departamento. Primero desasígnalo."); }
         catch (Exception ex) { return StatusCode(500, "Error al eliminar: " + ex.Message); }
     }
 
