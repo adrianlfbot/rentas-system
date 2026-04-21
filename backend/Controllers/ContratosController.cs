@@ -108,7 +108,8 @@ public class ContratoLuzController : ControllerBase
         return Ok(new { insertados, actualizados, errores });
     }
 
-    // === IMPORTAR RECIBOS XML (CFDi CFE) ===
+    // === IMPORTAR CONTRATOS DESDE XML (CFDi CFE) ===
+    // Crea un nuevo ContratoLuz por cada XML. Si ya existe un contrato con el mismo RPU, lo actualiza.
     [HttpPost("importar-xml")]
     public async Task<IActionResult> ImportarXml(List<IFormFile> archivos)
     {
@@ -117,7 +118,7 @@ public class ContratoLuzController : ControllerBase
         XNamespace cfdi = "http://www.sat.gob.mx/cfd/4";
         XNamespace cfe  = "http://www.itcomplements.com/cfd/cfe/v1";
 
-        int insertados = 0, omitidos = 0, errores = 0;
+        int insertados = 0, actualizados = 0, errores = 0;
         var detalle = new List<string>();
 
         foreach (var archivo in archivos)
@@ -129,88 +130,66 @@ public class ContratoLuzController : ControllerBase
                     doc = XDocument.Load(stream);
 
                 var comprobante = doc.Root!;
-
-                // Buscar bloque clsRegArchFact (Addenda extendida CFE con campos directos)
                 var regArch = comprobante.Descendants("clsRegArchFact").FirstOrDefault();
 
                 // === RPU ===
-                // Preferencia: clsRegArchFact/RPU > Addenda cfe:ComisionFederalElectricidad/@RPU
                 string? rpu = regArch?.Element("RPU")?.Value;
                 if (string.IsNullOrEmpty(rpu))
-                {
-                    var cfeCFE = comprobante.Descendants(cfe + "ComisionFederalElectricidad").FirstOrDefault();
-                    rpu = cfeCFE?.Attribute("RPU")?.Value;
-                }
+                    rpu = comprobante.Descendants(cfe + "ComisionFederalElectricidad").FirstOrDefault()?.Attribute("RPU")?.Value;
                 if (string.IsNullOrEmpty(rpu)) { errores++; detalle.Add($"{archivo.FileName}: RPU no encontrado"); continue; }
 
-                // === FECHA ===
-                // Preferencia: atributo Fecha del comprobante
-                DateTime fechaRegistro = DateTime.TryParse(comprobante.Attribute("Fecha")?.Value, out var fd) ? fd : DateTime.UtcNow;
+                // === NOMBRE (titular del contrato) ===
+                string nombre = regArch?.Element("NOMBRE")?.Value?.Trim() ?? "";
+                if (string.IsNullOrEmpty(nombre))
+                    nombre = comprobante.Descendants(cfdi + "Receptor").FirstOrDefault()?.Attribute("Nombre")?.Value ?? rpu;
 
-                // === PERIODO ===
-                // Preferencia: clsRegArchFact/OCR_AAAA + OCR_MM > Addenda cfe:CFE/@ano/@mes > fecha comprobante
-                string? ano = regArch?.Element("OCR_AAAA")?.Value;
-                string? mes = regArch?.Element("OCR_MM")?.Value;
-                if (string.IsNullOrEmpty(ano) || string.IsNullOrEmpty(mes))
+                // === NUMERO DE MEDIDOR ===
+                string? numMedidor = regArch?.Element("NUMMED1")?.Value?.Trim();
+                if (numMedidor == "NUMMED1" || string.IsNullOrWhiteSpace(numMedidor)) numMedidor = null;
+
+                // === FECHA VENCIMIENTO (fecha límite de pago del recibo) ===
+                DateTime? fechaVencimiento = null;
+                var fecLimite = regArch?.Element("FECLIMITE")?.Value; // ej: "27 MAR 26"
+                if (!string.IsNullOrEmpty(fecLimite))
                 {
-                    var cfeCFEParent = comprobante.Descendants(cfe + "CFE").FirstOrDefault();
-                    ano = cfeCFEParent?.Attribute("ano")?.Value;
-                    mes = cfeCFEParent?.Attribute("mes")?.Value;
+                    var meses = new[] { "ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC" };
+                    var partes = fecLimite.Split(' ');
+                    if (partes.Length == 3)
+                    {
+                        int dia = int.Parse(partes[0]);
+                        int mes = Array.IndexOf(meses, partes[1]) + 1;
+                        int anio = 2000 + int.Parse(partes[2]);
+                        if (mes > 0) fechaVencimiento = new DateTime(anio, mes, dia);
+                    }
                 }
-                string periodo = (!string.IsNullOrEmpty(ano) && !string.IsNullOrEmpty(mes))
-                    ? $"{ano}-{mes.PadLeft(2, '0')}"
-                    : fechaRegistro.ToString("yyyy-MM");
 
-                // === KWH ===
-                // Preferencia: clsRegArchFact/CONSUMO_R > cfdi:Concepto/@ValorUnitario
-                decimal? kwh = null;
-                var consumoR = regArch?.Element("CONSUMO_R")?.Value;
-                if (!string.IsNullOrEmpty(consumoR) && decimal.TryParse(consumoR,
-                    System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out decimal kwhR) && kwhR > 0)
+                // === PERIODO DE EMISION (CFE es siempre Bimestral) ===
+                string periodoEmision = "Bimestral";
+
+                // Upsert: si ya existe contrato con este RPU se actualiza, si no se crea
+                var contrato = await _db.ContratoLuz.FirstOrDefaultAsync(c => c.RPU == rpu);
+                if (contrato != null)
                 {
-                    kwh = kwhR;
+                    contrato.Nombre = nombre;
+                    if (numMedidor != null) contrato.NumeroMedidor = numMedidor;
+                    if (fechaVencimiento.HasValue) contrato.FechaVencimiento = fechaVencimiento;
+                    contrato.PeriodoEmision = periodoEmision;
+                    actualizados++;
+                    detalle.Add($"{archivo.FileName}: actualizado — RPU {rpu}, {nombre}");
                 }
                 else
                 {
-                    var concepto = comprobante.Descendants(cfdi + "Concepto")
-                        .FirstOrDefault(c => c.Attribute("Descripcion")?.Value?.Contains("Energ") == true);
-                    if (concepto != null && decimal.TryParse(concepto.Attribute("ValorUnitario")?.Value,
-                        System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture, out decimal kwhVal) && kwhVal > 0)
-                        kwh = kwhVal;
+                    _db.ContratoLuz.Add(new ContratoLuz
+                    {
+                        RPU            = rpu,
+                        Nombre         = nombre,
+                        NumeroMedidor  = numMedidor,
+                        FechaVencimiento = fechaVencimiento,
+                        PeriodoEmision = periodoEmision
+                    });
+                    insertados++;
+                    detalle.Add($"{archivo.FileName}: creado — RPU {rpu}, {nombre}");
                 }
-
-                // === MONTO ===
-                // Preferencia: clsRegArchFact/TOTAL_CENT_XML > cfdi:Comprobante/@Total
-                decimal monto = 0;
-                var totalXml = regArch?.Element("TOTAL_CENT_XML")?.Value;
-                if (!string.IsNullOrEmpty(totalXml))
-                    decimal.TryParse(totalXml, System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture, out monto);
-                if (monto == 0)
-                    decimal.TryParse(comprobante.Attribute("Total")?.Value,
-                        System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture, out monto);
-
-                // Buscar contrato por RPU
-                var contrato = await _db.ContratoLuz.FirstOrDefaultAsync(c => c.RPU == rpu);
-                if (contrato == null) { omitidos++; detalle.Add($"{archivo.FileName}: RPU {rpu} no tiene contrato registrado"); continue; }
-
-                // Verificar duplicado por contrato + periodo
-                bool existe = await _db.ConsumoLuz.AnyAsync(c => c.ContratoLuzId == contrato.ID && c.Periodo == periodo);
-                if (existe) { omitidos++; detalle.Add($"{archivo.FileName}: ya existe registro para RPU {rpu} periodo {periodo}"); continue; }
-
-                _db.ConsumoLuz.Add(new ConsumoLuz
-                {
-                    ContratoLuzId = contrato.ID,
-                    Periodo       = periodo,
-                    KWh           = kwh,
-                    Monto         = monto,
-                    FechaRegistro = fechaRegistro
-                });
-                insertados++;
-                detalle.Add($"{archivo.FileName}: OK — RPU {rpu}, periodo {periodo}, ${monto}");
             }
             catch (Exception ex)
             {
@@ -220,7 +199,7 @@ public class ContratoLuzController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return Ok(new { insertados, omitidos, errores, detalle });
+        return Ok(new { insertados, actualizados, errores, detalle });
     }
 
     private static string Csv(string? v) => v == null ? "" : v.Contains(',') ? $"\"{v}\"" : v;
