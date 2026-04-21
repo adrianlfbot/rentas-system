@@ -49,11 +49,11 @@ import { useAuthStore } from './stores/auth'
 import ToastContainer from './components/ToastContainer.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useConfirm } from './composables/useConfirm'
+import { onMounted } from 'vue'
 
-const { setRef } = useConfirm()
+const { registerDialog } = useConfirm()
 const confirmDialogRef = ref(null)
-import { watch } from 'vue'
-watch(confirmDialogRef, (v) => { if (v) setRef(confirmDialogRef) })
+onMounted(() => { registerDialog(confirmDialogRef.value) })
 
 const auth = useAuthStore()
 const router = useRouter()
