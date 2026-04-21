@@ -18,6 +18,10 @@
             ⬆ Importar CSV
             <input type="file" accept=".csv" class="hidden" @change="importarCsv" />
           </label>
+          <label class="px-4 py-2 bg-yellow-700 hover:bg-yellow-600 rounded-lg text-sm font-medium cursor-pointer">
+            📄 Importar Recibos XML
+            <input type="file" accept=".xml" multiple class="hidden" @change="importarXml" />
+          </label>
         </template>
         <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
       </div>
@@ -139,6 +143,24 @@ async function exportarCsv() {
 }
 
 // === IMPORTAR CSV ===
+// === IMPORTAR RECIBOS XML ===
+async function importarXml(e) {
+  const files = e.target.files
+  if (!files || files.length === 0) return
+  const fd = new FormData()
+  for (const file of files) fd.append('archivos', file)
+  try {
+    const res = await api.post('/contratos/luz/importar-xml', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const { insertados, omitidos, errores, detalle } = res.data
+    const resumen = `✅ Recibos procesados:\n- Insertados: ${insertados}\n- Omitidos: ${omitidos}\n- Errores: ${errores}\n\n${detalle.join('\n')}`
+    alert(resumen)
+  } catch (err) {
+    alert('Error al importar XML: ' + (err.response?.data || err.message))
+  } finally {
+    e.target.value = ''
+  }
+}
+
 async function importarCsv(e) {
   const file = e.target.files[0]
   if (!file) return

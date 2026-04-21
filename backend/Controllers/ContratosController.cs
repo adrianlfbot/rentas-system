@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentasApi.Data;
 using RentasApi.Models;
+using System.Xml.Linq;
 
 namespace RentasApi.Controllers;
 
@@ -91,6 +92,85 @@ public class ContratoLuzController : ControllerBase
         }
         await _db.SaveChangesAsync();
         return Ok(new { insertados, actualizados, errores });
+    }
+
+    // === IMPORTAR RECIBOS XML (CFDi CFE) ===
+    [HttpPost("importar-xml")]
+    public async Task<IActionResult> ImportarXml(List<IFormFile> archivos)
+    {
+        if (archivos == null || archivos.Count == 0) return BadRequest("Sin archivos.");
+
+        XNamespace cfdi = "http://www.sat.gob.mx/cfd/4";
+        XNamespace cfe  = "http://www.itcomplements.com/cfd/cfe/v1";
+
+        int insertados = 0, omitidos = 0, errores = 0;
+        var detalle = new List<string>();
+
+        foreach (var archivo in archivos)
+        {
+            try
+            {
+                XDocument doc;
+                using (var stream = archivo.OpenReadStream())
+                    doc = XDocument.Load(stream);
+
+                var comprobante = doc.Root!;
+
+                // Extraer Total y Fecha del comprobante
+                decimal monto = decimal.Parse(comprobante.Attribute("Total")?.Value ?? "0",
+                    System.Globalization.CultureInfo.InvariantCulture);
+                DateTime fechaRegistro = DateTime.Parse(comprobante.Attribute("Fecha")?.Value ?? DateTime.UtcNow.ToString());
+
+                // Buscar RPU en la Addenda CFE
+                var cfeCFE = comprobante.Descendants(cfe + "ComisionFederalElectricidad").FirstOrDefault();
+                string? rpu = cfeCFE?.Attribute("RPU")?.Value;
+                if (string.IsNullOrEmpty(rpu)) { errores++; detalle.Add($"{archivo.FileName}: RPU no encontrado"); continue; }
+
+                // Extraer periodo (año y mes)
+                var cfeCFEParent = comprobante.Descendants(cfe + "CFE").FirstOrDefault();
+                string? ano = cfeCFEParent?.Attribute("ano")?.Value;
+                string? mes = cfeCFEParent?.Attribute("mes")?.Value;
+                string periodo = (ano != null && mes != null) ? $"{ano}-{mes.PadLeft(2,'0')}" : fechaRegistro.ToString("yyyy-MM");
+
+                // Extraer KWh del concepto de Energía
+                decimal? kwh = null;
+                var concepto = comprobante.Descendants(cfdi + "Concepto")
+                    .FirstOrDefault(c => c.Attribute("Descripcion")?.Value?.Contains("Energ") == true);
+                if (concepto != null && decimal.TryParse(concepto.Attribute("ValorUnitario")?.Value,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out decimal kwhVal))
+                {
+                    kwh = kwhVal > 0 ? kwhVal : (decimal?)null;
+                }
+
+                // Buscar contrato por RPU
+                var contrato = await _db.ContratoLuz.FirstOrDefaultAsync(c => c.RPU == rpu);
+                if (contrato == null) { omitidos++; detalle.Add($"{archivo.FileName}: RPU {rpu} no tiene contrato registrado"); continue; }
+
+                // Verificar duplicado por contrato + periodo
+                bool existe = await _db.ConsumoLuz.AnyAsync(c => c.ContratoLuzId == contrato.ID && c.Periodo == periodo);
+                if (existe) { omitidos++; detalle.Add($"{archivo.FileName}: ya existe registro para RPU {rpu} periodo {periodo}"); continue; }
+
+                _db.ConsumoLuz.Add(new ConsumoLuz
+                {
+                    ContratoLuzId = contrato.ID,
+                    Periodo       = periodo,
+                    KWh           = kwh,
+                    Monto         = monto,
+                    FechaRegistro = fechaRegistro
+                });
+                insertados++;
+                detalle.Add($"{archivo.FileName}: OK — RPU {rpu}, periodo {periodo}, ${monto}");
+            }
+            catch (Exception ex)
+            {
+                errores++;
+                detalle.Add($"{archivo.FileName}: Error — {ex.Message}");
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new { insertados, omitidos, errores, detalle });
     }
 
     private static string Csv(string? v) => v == null ? "" : v.Contains(',') ? $"\"{v}\"" : v;
