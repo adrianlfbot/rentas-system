@@ -84,7 +84,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError, info } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 
 const tabs = [
   { key: 'luz', label: '⚡ Luz' },
@@ -132,7 +134,7 @@ async function save() {
 }
 
 async function remove(id) {
-  if (confirm('¿Eliminar contrato?')) {
+  if (await confirmDialog({ title: '¿Eliminar contrato?', message: 'Esta acción no se puede deshacer.' })) {
     try {
       await api.delete(`${apiPath.value}/${id}`)
       await load()

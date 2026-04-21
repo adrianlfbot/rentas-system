@@ -65,7 +65,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 import api from '../api'
 
 const backups = ref([])
@@ -137,7 +139,7 @@ async function confirmRestore() {
 }
 
 async function remove(b) {
-  if (!confirm(`¿Eliminar backup ${b.filename}?`)) return
+  if (!await confirmDialog({ title: '¿Eliminar backup?', message: `Se eliminará ${b.filename} permanentemente.` })) return
   try {
     await api.delete(`/backups/${b.filename}`)
     await load()

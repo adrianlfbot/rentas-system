@@ -67,7 +67,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
-const { success } = useToast()
+import { useConfirm } from '../composables/useConfirm'
+const { success, error: toastError } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 import FileUploader from '../components/FileUploader.vue'
@@ -94,7 +96,10 @@ async function save() {
 }
 
 async function remove(id) {
-  if (confirm('¿Eliminar ticket?')) { await api.delete(`/tickets/${id}`); await load() }
+  if (await confirmDialog({ title: '¿Eliminar ticket?', message: 'El ticket será eliminado permanentemente.' })) {
+    try { await api.delete(`/tickets/${id}`); await load(); success('Ticket eliminado.') }
+    catch (err) { toastError(err.response?.data || err.message) }
+  }
 }
 
 function prioridadColor(p) {

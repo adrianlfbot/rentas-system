@@ -78,7 +78,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 
@@ -120,6 +122,9 @@ async function save() {
 }
 
 async function remove(id) {
-  if (confirm('¿Eliminar ubicación?')) { await api.delete(`/ubicaciones/${id}`); await load() }
+  if (await confirmDialog({ title: '¿Eliminar ubicación?', message: 'Se eliminará la ubicación permanentemente.' })) {
+    try { await api.delete(`/ubicaciones/${id}`); await load(); success('Ubicación eliminada.') }
+    catch (err) { toastError(err.response?.data || err.message) }
+  }
 }
 </script>

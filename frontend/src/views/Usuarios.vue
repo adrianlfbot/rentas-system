@@ -76,7 +76,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError, warn } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 import api from '../api'
 
 const items = ref([])
@@ -133,6 +135,9 @@ async function save() {
 }
 
 async function remove(correo) {
-  if (confirm('¿Eliminar usuario?')) { await api.delete(`/usuarios/${correo}`); await load() }
+  if (await confirmDialog({ title: '¿Eliminar usuario?', message: `Se eliminará el usuario ${correo} permanentemente.` })) {
+    try { await api.delete(`/usuarios/${correo}`); await load(); success('Usuario eliminado.') }
+    catch (err) { toastError(err.response?.data || err.message) }
+  }
 }
 </script>

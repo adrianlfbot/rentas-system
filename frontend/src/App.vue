@@ -39,6 +39,7 @@
     </main>
   </div>
   <ToastContainer />
+  <ConfirmDialog ref="confirmDialogRef" />
 </template>
 
 <script setup>
@@ -46,6 +47,13 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import ToastContainer from './components/ToastContainer.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
+import { useConfirm } from './composables/useConfirm'
+
+const { setRef } = useConfirm()
+const confirmDialogRef = ref(null)
+import { watch } from 'vue'
+watch(confirmDialogRef, (v) => { if (v) setRef(confirmDialogRef) })
 
 const auth = useAuthStore()
 const router = useRouter()

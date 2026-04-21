@@ -115,7 +115,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError } = useToast()
+const { confirm: confirmDialog } = useConfirm()
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 
@@ -166,7 +168,10 @@ async function save() {
 }
 
 async function remove(id) {
-  if (confirm('¿Eliminar departamento?')) { await api.delete(`/departamentos/${id}`); await load() }
+  if (await confirmDialog({ title: '¿Eliminar departamento?', message: 'Se eliminará el departamento permanentemente.' })) {
+    try { await api.delete(`/departamentos/${id}`); await load(); success('Departamento eliminado.') }
+    catch (err) { toastError(err.response?.data || err.message) }
+  }
 }
 
 async function openNotas(d) {
@@ -183,7 +188,7 @@ async function addNota() {
 }
 
 async function deleteNota(id) {
-  if (confirm('¿Borrar nota?')) {
+  if (await confirmDialog({ title: '¿Borrar nota?', message: 'La nota será eliminada.', confirmLabel: 'Borrar' })) {
     await api.delete(`/departamentos/notas/${id}`)
     notas.value = notas.value.filter(n => n.id !== id)
   }
