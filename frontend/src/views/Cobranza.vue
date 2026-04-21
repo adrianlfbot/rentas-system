@@ -70,6 +70,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success } = useToast()
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 
@@ -95,7 +97,7 @@ async function save() {
     const res = await api.post('/cobranza', form.value)
     form.value.id = res.data.id
   }
-  alert('Guardado.')
+  success('Pago registrado correctamente.')
   await load()
 }
 

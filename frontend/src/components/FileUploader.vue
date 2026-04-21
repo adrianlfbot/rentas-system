@@ -30,6 +30,8 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useToast } from '../composables/useToast'
+const { error: toastError } = useToast()
 import api from '../api'
 
 const props = defineProps({
@@ -74,7 +76,7 @@ async function downloadFile(file) {
     window.URL.revokeObjectURL(url)
   } catch (e) {
     console.error("Error descargando archivo", e)
-    alert("Error al descargar el archivo. Verifica tu sesión.")
+    toastError('Error al descargar el archivo. Verifica tu sesión.')
   }
 }
 
@@ -98,7 +100,7 @@ async function upload() {
     fileInput.value.value = '' // Reset input
     await load()
   } catch (e) {
-    alert('Error al subir archivo')
+    toastError('Error al subir archivo')
   } finally {
     uploading.value = false
     uploadProgress.value = ''
@@ -126,7 +128,7 @@ async function remove(id) {
     await api.delete(`/adjuntos/${id}`)
     await load()
   } catch (e) {
-    alert('Error al eliminar')
+    toastError('Error al eliminar')
   }
 }
 

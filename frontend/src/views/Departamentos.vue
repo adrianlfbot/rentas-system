@@ -114,6 +114,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success, error: toastError } = useToast()
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 
@@ -154,11 +156,11 @@ async function save() {
       form.value.id = res.data.id
     }
     // No cerramos el modal inmediatamente para permitir adjuntar
-    alert('Guardado. Ahora puedes adjuntar archivos si lo deseas.')
+    success('Departamento guardado. Puedes adjuntar archivos ahora.')
     await load()
   } catch (e) {
     const msg = e.response?.data?.message || e.response?.data || e.message || 'Error desconocido'
-    alert('❌ Error al guardar: ' + msg)
+    toastError('Error al guardar: ' + msg)
     console.error('Error guardando departamento:', e)
   }
 }

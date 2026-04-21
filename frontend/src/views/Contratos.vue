@@ -83,6 +83,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
+import { useToast } from '../composables/useToast'
+const { success, error: toastError, info } = useToast()
 
 const tabs = [
   { key: 'luz', label: '⚡ Luz' },
@@ -125,12 +127,20 @@ async function save() {
     const res = await api.post(apiPath.value, form.value)
     form.value.id = res.data.id
   }
-  alert('Guardado.')
+  success('Contrato guardado correctamente.')
   await load()
 }
 
 async function remove(id) {
-  if (confirm('¿Eliminar contrato?')) { await api.delete(`${apiPath.value}/${id}`); await load() }
+  if (confirm('¿Eliminar contrato?')) {
+    try {
+      await api.delete(`${apiPath.value}/${id}`)
+      await load()
+      success('Contrato eliminado.')
+    } catch (err) {
+      toastError('No se pudo eliminar: ' + (err.response?.data || err.message))
+    }
+  }
 }
 
 // === EXPORTAR CSV ===
@@ -153,9 +163,9 @@ async function importarXml(e) {
     const res = await api.post('/contratos/luz/importar-xml', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     const { insertados, omitidos, errores, detalle } = res.data
     const resumen = `✅ Recibos procesados:\n- Insertados: ${insertados}\n- Omitidos: ${omitidos}\n- Errores: ${errores}\n\n${detalle.join('\n')}`
-    alert(resumen)
+    info(resumen)
   } catch (err) {
-    alert('Error al importar XML: ' + (err.response?.data || err.message))
+    toastError('Error al importar XML: ' + (err.response?.data || err.message))
   } finally {
     e.target.value = ''
   }
@@ -169,10 +179,10 @@ async function importarCsv(e) {
   try {
     const res = await api.post('/contratos/luz/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     const { insertados, actualizados, errores } = res.data
-    alert(`✅ Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.`)
+    success(`Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.`)
     await load()
   } catch (err) {
-    alert('Error al importar: ' + (err.response?.data || err.message))
+    toastError('Error al importar: ' + (err.response?.data || err.message))
   } finally {
     e.target.value = '' // reset input
   }

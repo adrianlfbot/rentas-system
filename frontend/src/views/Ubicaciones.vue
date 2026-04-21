@@ -77,6 +77,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success, error: toastError } = useToast()
 import api from '../api'
 import FileUploader from '../components/FileUploader.vue'
 
@@ -113,7 +115,7 @@ async function save() {
     const res = await api.post('/ubicaciones', form.value)
     form.value.idUbicacion = res.data.idUbicacion
   }
-  alert('Guardado.')
+  success('Ubicación guardada correctamente.')
   await load()
 }
 

@@ -38,12 +38,14 @@
       <router-view />
     </main>
   </div>
+  <ToastContainer />
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
+import ToastContainer from './components/ToastContainer.vue'
 
 const auth = useAuthStore()
 const router = useRouter()

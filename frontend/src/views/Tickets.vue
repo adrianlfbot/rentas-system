@@ -66,6 +66,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success } = useToast()
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 import FileUploader from '../components/FileUploader.vue'
@@ -87,7 +89,7 @@ async function save() {
     const res = await api.post('/tickets', form.value)
     form.value.id = res.data.id
   }
-  alert('Guardado. Puedes adjuntar archivos ahora.')
+  success('Ticket guardado. Puedes adjuntar archivos ahora.')
   await load()
 }
 

@@ -75,6 +75,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success, error: toastError, warn } = useToast()
 import api from '../api'
 
 const items = ref([])
@@ -92,7 +94,7 @@ function edit(u) { isEdit.value = true; form.value = { ...u, password: '', ine: 
 
 async function uploadINE() {
   const file = ineInput.value?.files[0]
-  if (!file) return alert('Selecciona un archivo')
+  if (!file) return warn('Selecciona un archivo')
   
   uploadingINE.value = true
   const formData = new FormData()
@@ -106,7 +108,7 @@ async function uploadINE() {
     form.value.ine = res.data.id
     ineInput.value.value = ''
   } catch (e) {
-    alert('Error al subir INE')
+    toastError('Error al subir INE')
     console.error(e)
   } finally {
     uploadingINE.value = false
@@ -120,7 +122,7 @@ async function viewINE() {
     const url = window.URL.createObjectURL(new Blob([response.data]))
     window.open(url, '_blank')
   } catch (e) {
-    alert('Error al ver INE')
+    toastError('Error al ver INE')
   }
 }
 

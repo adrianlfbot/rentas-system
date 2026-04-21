@@ -64,6 +64,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+const { success, error: toastError } = useToast()
 import api from '../api'
 
 const backups = ref([])
@@ -88,10 +90,10 @@ async function createBackup() {
   creating.value = true
   try {
     await api.post('/backups')
-    alert('✅ Backup creado exitosamente')
+    success('Backup creado exitosamente')
     await load()
   } catch (e) {
-    alert('❌ Error al crear backup: ' + (e.response?.data?.message || e.message))
+    toastError('Error al crear backup: ' + (e.response?.data?.message || e.message))
   } finally {
     creating.value = false
   }
@@ -109,7 +111,7 @@ async function download(b) {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
   } catch (e) {
-    alert('❌ Error al descargar: ' + e.message)
+    toastError('Error al descargar: ' + e.message)
   }
 }
 
@@ -124,10 +126,10 @@ async function confirmRestore() {
   restoring.value = true
   try {
     await api.post(`/backups/restore/${selectedBackup.value.filename}`)
-    alert('✅ Backup restaurado exitosamente. La página se recargará.')
+    success('Backup restaurado exitosamente. La página se recargará.')
     window.location.reload()
   } catch (e) {
-    alert('❌ Error al restaurar: ' + (e.response?.data?.message || e.message))
+    toastError('Error al restaurar: ' + (e.response?.data?.message || e.message))
   } finally {
     restoring.value = false
     showRestoreModal.value = false
@@ -140,7 +142,7 @@ async function remove(b) {
     await api.delete(`/backups/${b.filename}`)
     await load()
   } catch (e) {
-    alert('❌ Error al eliminar: ' + e.message)
+    toastError('Error al eliminar: ' + e.message)
   }
 }
 </script>
