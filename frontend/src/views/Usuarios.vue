@@ -2,7 +2,14 @@
   <div class="p-8">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Usuarios</h1>
-      <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
+      <div class="flex gap-2">
+        <button @click="exportarCsv" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium">⬇ Exportar CSV</button>
+        <label class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium cursor-pointer">
+          ⬆ Importar Inquilinos
+          <input type="file" accept=".csv" class="hidden" @change="importarCsv" />
+        </label>
+        <button @click="openNew" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">+ Nuevo</button>
+      </div>
     </div>
 
     <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -132,6 +139,33 @@ async function save() {
   if (isEdit.value) await api.put(`/usuarios/${form.value.correo}`, form.value)
   else await api.post('/usuarios', form.value)
   showForm.value = false; await load()
+}
+
+// === EXPORTAR CSV ===
+async function exportarCsv() {
+  const res = await api.get('/usuarios/exportar', { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url; a.download = 'usuarios.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// === IMPORTAR CSV (solo inquilinos) ===
+async function importarCsv(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const fd = new FormData()
+  fd.append('archivo', file)
+  try {
+    const res = await api.post('/usuarios/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const { insertados, omitidos, errores } = res.data
+    success(`Importado: ${insertados} nuevos, ${omitidos} ya existían, ${errores} errores.`)
+    await load()
+  } catch (err) {
+    toastError('Error al importar: ' + (err.response?.data || err.message))
+  } finally {
+    e.target.value = ''
+  }
 }
 
 async function remove(correo) {
