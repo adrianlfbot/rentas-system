@@ -116,32 +116,68 @@ public class ContratoLuzController : ControllerBase
 
                 var comprobante = doc.Root!;
 
-                // Extraer Total y Fecha del comprobante
-                decimal monto = decimal.Parse(comprobante.Attribute("Total")?.Value ?? "0",
-                    System.Globalization.CultureInfo.InvariantCulture);
-                DateTime fechaRegistro = DateTime.Parse(comprobante.Attribute("Fecha")?.Value ?? DateTime.UtcNow.ToString());
+                // Buscar bloque clsRegArchFact (Addenda extendida CFE con campos directos)
+                var regArch = comprobante.Descendants("clsRegArchFact").FirstOrDefault();
 
-                // Buscar RPU en la Addenda CFE
-                var cfeCFE = comprobante.Descendants(cfe + "ComisionFederalElectricidad").FirstOrDefault();
-                string? rpu = cfeCFE?.Attribute("RPU")?.Value;
+                // === RPU ===
+                // Preferencia: clsRegArchFact/RPU > Addenda cfe:ComisionFederalElectricidad/@RPU
+                string? rpu = regArch?.Element("RPU")?.Value;
+                if (string.IsNullOrEmpty(rpu))
+                {
+                    var cfeCFE = comprobante.Descendants(cfe + "ComisionFederalElectricidad").FirstOrDefault();
+                    rpu = cfeCFE?.Attribute("RPU")?.Value;
+                }
                 if (string.IsNullOrEmpty(rpu)) { errores++; detalle.Add($"{archivo.FileName}: RPU no encontrado"); continue; }
 
-                // Extraer periodo (año y mes)
-                var cfeCFEParent = comprobante.Descendants(cfe + "CFE").FirstOrDefault();
-                string? ano = cfeCFEParent?.Attribute("ano")?.Value;
-                string? mes = cfeCFEParent?.Attribute("mes")?.Value;
-                string periodo = (ano != null && mes != null) ? $"{ano}-{mes.PadLeft(2,'0')}" : fechaRegistro.ToString("yyyy-MM");
+                // === FECHA ===
+                // Preferencia: atributo Fecha del comprobante
+                DateTime fechaRegistro = DateTime.TryParse(comprobante.Attribute("Fecha")?.Value, out var fd) ? fd : DateTime.UtcNow;
 
-                // Extraer KWh del concepto de Energía
-                decimal? kwh = null;
-                var concepto = comprobante.Descendants(cfdi + "Concepto")
-                    .FirstOrDefault(c => c.Attribute("Descripcion")?.Value?.Contains("Energ") == true);
-                if (concepto != null && decimal.TryParse(concepto.Attribute("ValorUnitario")?.Value,
-                    System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out decimal kwhVal))
+                // === PERIODO ===
+                // Preferencia: clsRegArchFact/OCR_AAAA + OCR_MM > Addenda cfe:CFE/@ano/@mes > fecha comprobante
+                string? ano = regArch?.Element("OCR_AAAA")?.Value;
+                string? mes = regArch?.Element("OCR_MM")?.Value;
+                if (string.IsNullOrEmpty(ano) || string.IsNullOrEmpty(mes))
                 {
-                    kwh = kwhVal > 0 ? kwhVal : (decimal?)null;
+                    var cfeCFEParent = comprobante.Descendants(cfe + "CFE").FirstOrDefault();
+                    ano = cfeCFEParent?.Attribute("ano")?.Value;
+                    mes = cfeCFEParent?.Attribute("mes")?.Value;
                 }
+                string periodo = (!string.IsNullOrEmpty(ano) && !string.IsNullOrEmpty(mes))
+                    ? $"{ano}-{mes.PadLeft(2, '0')}"
+                    : fechaRegistro.ToString("yyyy-MM");
+
+                // === KWH ===
+                // Preferencia: clsRegArchFact/CONSUMO_R > cfdi:Concepto/@ValorUnitario
+                decimal? kwh = null;
+                var consumoR = regArch?.Element("CONSUMO_R")?.Value;
+                if (!string.IsNullOrEmpty(consumoR) && decimal.TryParse(consumoR,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out decimal kwhR) && kwhR > 0)
+                {
+                    kwh = kwhR;
+                }
+                else
+                {
+                    var concepto = comprobante.Descendants(cfdi + "Concepto")
+                        .FirstOrDefault(c => c.Attribute("Descripcion")?.Value?.Contains("Energ") == true);
+                    if (concepto != null && decimal.TryParse(concepto.Attribute("ValorUnitario")?.Value,
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal kwhVal) && kwhVal > 0)
+                        kwh = kwhVal;
+                }
+
+                // === MONTO ===
+                // Preferencia: clsRegArchFact/TOTAL_CENT_XML > cfdi:Comprobante/@Total
+                decimal monto = 0;
+                var totalXml = regArch?.Element("TOTAL_CENT_XML")?.Value;
+                if (!string.IsNullOrEmpty(totalXml))
+                    decimal.TryParse(totalXml, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out monto);
+                if (monto == 0)
+                    decimal.TryParse(comprobante.Attribute("Total")?.Value,
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out monto);
 
                 // Buscar contrato por RPU
                 var contrato = await _db.ContratoLuz.FirstOrDefaultAsync(c => c.RPU == rpu);
