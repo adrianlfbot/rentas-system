@@ -16,7 +16,7 @@ public class UbicacionesController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
-        Ok(await _db.Ubicaciones.Include(u => u.ContratoLuz).Include(u => u.ContratoAgua).Include(u => u.ContratoInternet).ToListAsync());
+        Ok(await _db.Ubicaciones.Include(u => u.ContratoLuz).Include(u => u.ContratoAgua).Include(u => u.ContratoInternet).Include(u => u.Departamentos).ToListAsync());
 
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(int id)
