@@ -198,8 +198,9 @@ async function importarCsv(e) {
   fd.append('archivo', file)
   try {
     const res = await api.post('/departamentos/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    const { insertados, actualizados, errores } = res.data
-    success(`Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.`)
+    const { insertados, actualizados, errores, detalle } = res.data
+    const msg = `Importado: ${insertados} nuevos, ${actualizados} actualizados, ${errores} errores.${ detalle?.length ? '\n' + detalle.join('\n') : ''}`
+    errores > 0 ? toastError(msg) : success(msg)
     await load()
   } catch (err) {
     toastError('Error al importar: ' + (err.response?.data || err.message))
