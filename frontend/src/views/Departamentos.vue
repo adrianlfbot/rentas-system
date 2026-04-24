@@ -163,6 +163,7 @@ const itemsFiltrados = computed(() => {
     )
   }
   lista.sort((a, b) => {
+    // Orden primario: columna seleccionada
     let va, vb
     if (sortCol.value === 'ubicacion') {
       va = `${a.ubicacion?.calle} ${a.ubicacion?.numero}` || ''
@@ -171,8 +172,14 @@ const itemsFiltrados = computed(() => {
       va = a[sortCol.value] ?? ''
       vb = b[sortCol.value] ?? ''
     }
-    if (typeof va === 'string') return va.localeCompare(vb) * sortDir.value
-    return (va - vb) * sortDir.value
+    const primario = typeof va === 'string' ? va.localeCompare(vb) * sortDir.value : (va - vb) * sortDir.value
+    if (primario !== 0) return primario
+    // Orden secundario: siempre ubicacion → clave
+    const ubiA = `${a.ubicacion?.calle} ${a.ubicacion?.numero}` || ''
+    const ubiB = `${b.ubicacion?.calle} ${b.ubicacion?.numero}` || ''
+    const ubiCmp = ubiA.localeCompare(ubiB)
+    if (ubiCmp !== 0) return ubiCmp
+    return (a.clave || '').localeCompare(b.clave || '')
   })
   return lista
 })
