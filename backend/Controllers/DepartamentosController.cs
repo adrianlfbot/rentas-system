@@ -79,21 +79,33 @@ public class DepartamentosController : ControllerBase
                 return BadRequest(new { message = $"El inquilino '{depto.InquilinoCorreo}' no está registrado. Primero debes darlo de alta en Usuarios." });
         }
 
-        _db.Departamentos.Add(depto);
-        await _db.SaveChangesAsync();
-
-        if (!string.IsNullOrEmpty(depto.InquilinoCorreo))
+        try
         {
-            _db.HistorialInquilinos.Add(new HistorialInquilino
-            {
-                DepartamentoId = depto.ID,
-                CorreoInquilino = depto.InquilinoCorreo,
-                FechaInicio = DateTime.UtcNow
-            });
+            _db.Departamentos.Add(depto);
             await _db.SaveChangesAsync();
-        }
 
-        return CreatedAtAction(nameof(Get), new { id = depto.ID }, depto);
+            if (!string.IsNullOrEmpty(depto.InquilinoCorreo))
+            {
+                _db.HistorialInquilinos.Add(new HistorialInquilino
+                {
+                    DepartamentoId = depto.ID,
+                    CorreoInquilino = depto.InquilinoCorreo,
+                    FechaInicio = DateTime.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+
+            return CreatedAtAction(nameof(Get), new { id = depto.ID }, depto);
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.Message ?? ex.Message;
+            if (inner.Contains("UNIQUE"))
+                return Conflict($"Ya existe un departamento con la clave '{depto.Clave}' en esa ubicación.");
+            if (inner.Contains("FOREIGN KEY"))
+                return BadRequest($"Referencia inválida: verifica que la ubicación, contrato de luz o inquilino existan.");
+            return StatusCode(500, $"Error al guardar: {inner}");
+        }
     }
 
     [HttpPut("{id}")]
@@ -144,8 +156,20 @@ public class DepartamentosController : ControllerBase
         d.DescripcionPublicacion = updated.DescripcionPublicacion;
         d.InquilinoCorreo = updated.InquilinoCorreo;
 
-        await _db.SaveChangesAsync();
-        return NoContent();
+        try
+        {
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.Message ?? ex.Message;
+            if (inner.Contains("UNIQUE"))
+                return Conflict($"Ya existe un departamento con la clave '{updated.Clave}' en esa ubicación.");
+            if (inner.Contains("FOREIGN KEY"))
+                return BadRequest("Referencia inválida: verifica que la ubicación, contrato de luz o inquilino existan.");
+            return StatusCode(500, $"Error al guardar: {inner}");
+        }
     }
 
     [HttpDelete("{id}")]
