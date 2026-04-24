@@ -71,6 +71,9 @@ public class DepartamentosController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Departamento depto)
     {
+        // Normalizar string vacío a null
+        depto.InquilinoCorreo = string.IsNullOrWhiteSpace(depto.InquilinoCorreo) ? null : depto.InquilinoCorreo.Trim();
+
         // Validar que el inquilino exista si se especificó
         if (!string.IsNullOrEmpty(depto.InquilinoCorreo))
         {
@@ -113,6 +116,9 @@ public class DepartamentosController : ControllerBase
     {
         var d = await _db.Departamentos.FindAsync(id);
         if (d == null) return NotFound();
+
+        // Normalizar string vacío a null
+        updated.InquilinoCorreo = string.IsNullOrWhiteSpace(updated.InquilinoCorreo) ? null : updated.InquilinoCorreo.Trim();
 
         // Validar que el inquilino exista si se especificó
         if (!string.IsNullOrEmpty(updated.InquilinoCorreo))
