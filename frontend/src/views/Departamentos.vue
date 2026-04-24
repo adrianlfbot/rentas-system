@@ -12,22 +12,27 @@
       </div>
     </div>
 
+    <!-- Búsqueda -->
+    <div class="mb-4">
+      <input v-model="busqueda" placeholder="🔍 Buscar por ubicación, clave, descripción, inquilino..." class="w-full md:w-96 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
+    </div>
+
     <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
       <table class="w-full text-sm min-w-[800px]">
         <thead class="bg-gray-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-gray-400">Ubicación</th>
-            <th class="px-4 py-3 text-left text-gray-400">Clave</th>
-            <th class="px-4 py-3 text-left text-gray-400">Descripción</th>
-            <th class="px-4 py-3 text-left text-gray-400">Renta</th>
-            <th class="px-4 py-3 text-left text-gray-400">Día Cobro</th>
+            <th @click="sortBy('ubicacion')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Ubicación {{ sortIcon('ubicacion') }}</th>
+            <th @click="sortBy('clave')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Clave {{ sortIcon('clave') }}</th>
+            <th @click="sortBy('descripcion')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Descripción {{ sortIcon('descripcion') }}</th>
+            <th @click="sortBy('montoRenta')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Renta {{ sortIcon('montoRenta') }}</th>
+            <th @click="sortBy('diaVencimiento')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Día Cobro {{ sortIcon('diaVencimiento') }}</th>
             <th class="px-4 py-3 text-left text-gray-400">Contrato Luz</th>
-            <th class="px-4 py-3 text-left text-gray-400">Inquilino</th>
+            <th @click="sortBy('inquilinoCorreo')" class="px-4 py-3 text-left text-gray-400 cursor-pointer hover:text-white select-none">Inquilino {{ sortIcon('inquilinoCorreo') }}</th>
             <th class="px-4 py-3 text-left text-gray-400">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in items" :key="d.id" class="border-t border-gray-800 hover:bg-gray-800/30">
+          <tr v-for="d in itemsFiltrados" :key="d.id" class="border-t border-gray-800 hover:bg-gray-800/30">
             <td class="px-4 py-3">{{ d.ubicacion?.calle }} {{ d.ubicacion?.numero }}</td>
             <td class="px-4 py-3 font-mono">{{ d.clave }}</td>
             <td class="px-4 py-3">{{ d.descripcion }}</td>
@@ -120,7 +125,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { useConfirm } from '../composables/useConfirm'
 const { success, error: toastError } = useToast()
@@ -131,6 +136,46 @@ import FileUploader from '../components/FileUploader.vue'
 const items = ref([])
 const ubicaciones = ref([])
 const contratosLuz = ref([])
+const busqueda = ref('')
+const sortCol = ref('ubicacion')
+const sortDir = ref(1) // 1 asc, -1 desc
+
+function sortBy(col) {
+  if (sortCol.value === col) sortDir.value *= -1
+  else { sortCol.value = col; sortDir.value = 1 }
+}
+
+function sortIcon(col) {
+  if (sortCol.value !== col) return ''
+  return sortDir.value === 1 ? '↑' : '↓'
+}
+
+const itemsFiltrados = computed(() => {
+  let lista = [...items.value]
+  const q = busqueda.value.toLowerCase().trim()
+  if (q) {
+    lista = lista.filter(d =>
+      (`${d.ubicacion?.calle} ${d.ubicacion?.numero}`).toLowerCase().includes(q) ||
+      (d.clave || '').toLowerCase().includes(q) ||
+      (d.descripcion || '').toLowerCase().includes(q) ||
+      (d.inquilinoCorreo || '').toLowerCase().includes(q) ||
+      (d.contratoLuz?.nombre || '').toLowerCase().includes(q)
+    )
+  }
+  lista.sort((a, b) => {
+    let va, vb
+    if (sortCol.value === 'ubicacion') {
+      va = `${a.ubicacion?.calle} ${a.ubicacion?.numero}` || ''
+      vb = `${b.ubicacion?.calle} ${b.ubicacion?.numero}` || ''
+    } else {
+      va = a[sortCol.value] ?? ''
+      vb = b[sortCol.value] ?? ''
+    }
+    if (typeof va === 'string') return va.localeCompare(vb) * sortDir.value
+    return (va - vb) * sortDir.value
+  })
+  return lista
+})
 const showForm = ref(false)
 const showNotas = ref(false)
 const notas = ref([])
