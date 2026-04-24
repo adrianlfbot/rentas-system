@@ -169,8 +169,8 @@ async function save() {
       // Asignar ID para que aparezca el uploader sin cerrar
       form.value.id = res.data.id
     }
-    // No cerramos el modal inmediatamente para permitir adjuntar
-    success('Departamento guardado. Puedes adjuntar archivos ahora.')
+    success('Departamento guardado.')
+    showForm.value = false
     await load()
   } catch (e) {
     const msg = e.response?.data?.message || e.response?.data || e.message || 'Error desconocido'
