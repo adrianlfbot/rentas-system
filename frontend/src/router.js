@@ -8,6 +8,7 @@ const routes = [
   { path: '/contratos', name: 'Contratos', component: () => import('./views/Contratos.vue'), meta: { auth: true, role: 'Propietario' } },
   { path: '/cobranza', name: 'Cobranza', component: () => import('./views/Cobranza.vue'), meta: { auth: true, role: 'Propietario' } },
   { path: '/tablero', name: 'Tablero', component: () => import('./views/Tablero.vue'), meta: { auth: true, role: 'Propietario' } },
+  { path: '/gastos', name: 'Gastos', component: () => import('./views/Gastos.vue'), meta: { auth: true, role: 'Propietario' } },
   { path: '/tickets', name: 'Tickets', component: () => import('./views/Tickets.vue'), meta: { auth: true } },
   { path: '/usuarios', name: 'Usuarios', component: () => import('./views/Usuarios.vue'), meta: { auth: true, role: 'Propietario' } },
   { path: '/backups', name: 'Backups', component: () => import('./views/Backups.vue'), meta: { auth: true, role: 'Propietario' } },

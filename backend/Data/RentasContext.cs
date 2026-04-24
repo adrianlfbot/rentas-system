@@ -18,6 +18,7 @@ public class RentasContext : DbContext
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Adjunto> Adjuntos => Set<Adjunto>();
     public DbSet<NotaDepartamento> NotasDepartamento => Set<NotaDepartamento>();
+    public DbSet<Gasto> Gastos => Set<Gasto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +77,14 @@ public class RentasContext : DbContext
 
         // Adjunto
         modelBuilder.Entity<Adjunto>(e => { e.ToTable("Adjuntos"); e.HasKey(a => a.ID); });
+
+        // Gasto
+        modelBuilder.Entity<Gasto>(e =>
+        {
+            e.ToTable("Gastos");
+            e.HasKey(g => g.ID);
+            e.HasOne(g => g.Departamento).WithMany().HasForeignKey(g => g.DepartamentoId);
+        });
 
 
     }

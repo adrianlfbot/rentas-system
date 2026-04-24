@@ -71,6 +71,7 @@ const menuItems = computed(() => {
       { path: '/departamentos', icon: '🏢', label: 'Departamentos' },
       { path: '/contratos', icon: '📄', label: 'Contratos' },
       { path: '/cobranza', icon: '💳', label: 'Cobranza' },
+      { path: '/gastos', icon: '💸', label: 'Gastos' },
     )
     items.push({ path: '/usuarios', icon: '👥', label: 'Usuarios' })
     items.push({ path: '/backups', icon: '💾', label: 'Backups' })
