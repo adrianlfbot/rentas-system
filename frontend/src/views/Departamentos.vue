@@ -157,10 +157,15 @@ function edit(d) { form.value = { ...d }; showForm.value = true }
 
 async function save() {
   try {
+    // Normalizar campos opcionales: string vacío → null
+    const payload = { ...form.value }
+    if (!payload.contratoLuzId) payload.contratoLuzId = null
+    if (!payload.inquilinoCorreo?.trim()) payload.inquilinoCorreo = null
+
     if (form.value.id) {
-      await api.put(`/departamentos/${form.value.id}`, form.value)
+      await api.put(`/departamentos/${form.value.id}`, payload)
     } else {
-      const res = await api.post('/departamentos', form.value)
+      const res = await api.post('/departamentos', payload)
       // Asignar ID para que aparezca el uploader sin cerrar
       form.value.id = res.data.id
     }
