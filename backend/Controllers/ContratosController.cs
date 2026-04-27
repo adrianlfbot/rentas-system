@@ -19,6 +19,34 @@ public class ContratoLuzController : ControllerBase
     [HttpGet] public async Task<IActionResult> GetAll() => Ok(await _db.ContratoLuz.ToListAsync());
     [HttpGet("{id}")] public async Task<IActionResult> Get(int id) { var c = await _db.ContratoLuz.FindAsync(id); return c == null ? NotFound() : Ok(c); }
 
+    // Contratos disponibles: sin departamento asignado, o el que ya tiene el depto indicado
+    [HttpGet("disponibles")]
+    public async Task<IActionResult> Disponibles([FromQuery] int? departamentoId)
+    {
+        // IDs de contratos ya asignados a algún departamento
+        var asignados = await _db.Departamentos
+            .Where(d => d.ContratoLuzId != null)
+            .Select(d => d.ContratoLuzId!.Value)
+            .ToListAsync();
+
+        // Si estamos editando un depto, excluimos su propio contrato de la lista de "asignados"
+        if (departamentoId.HasValue)
+        {
+            var propioContrato = await _db.Departamentos
+                .Where(d => d.ID == departamentoId.Value)
+                .Select(d => d.ContratoLuzId)
+                .FirstOrDefaultAsync();
+            if (propioContrato.HasValue)
+                asignados.Remove(propioContrato.Value);
+        }
+
+        var disponibles = await _db.ContratoLuz
+            .Where(c => !asignados.Contains(c.ID))
+            .ToListAsync();
+
+        return Ok(disponibles);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ContratoLuz c) { _db.ContratoLuz.Add(c); await _db.SaveChangesAsync(); return CreatedAtAction(nameof(Get), new { id = c.ID }, c); }
 

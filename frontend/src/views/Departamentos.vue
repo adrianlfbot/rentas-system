@@ -79,7 +79,7 @@
           </div>
           <select v-model="form.contratoLuzId" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
             <option :value="null">Sin Contrato de Luz propio</option>
-            <option v-for="c in contratosLuz" :key="c.id" :value="c.id">⚡ {{ c.nombre }} ({{ c.rpu }})</option>
+            <option v-for="c in contratosDisponibles" :key="c.id" :value="c.id">⚡ {{ c.nombre }} ({{ c.rpu }})</option>
           </select>
           <input v-model.number="form.diaVencimiento" type="number" min="1" max="31" placeholder="Día vencimiento (1-31)" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <textarea v-model="form.descripcionPublicacion" placeholder="Descripción para publicación (con emojis)" rows="3" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"></textarea>
@@ -136,6 +136,7 @@ import FileUploader from '../components/FileUploader.vue'
 const items = ref([])
 const ubicaciones = ref([])
 const contratosLuz = ref([])
+const contratosDisponibles = ref([])
 const busqueda = ref('')
 const sortCol = ref('ubicacion')
 const sortDir = ref(1) // 1 asc, -1 desc
@@ -204,8 +205,22 @@ async function load() {
 }
 onMounted(load)
 
-function openNew() { form.value = { ...emptyForm }; showForm.value = true }
-function edit(d) { form.value = { ...d }; showForm.value = true }
+async function cargarContratosDisponibles(departamentoId = null) {
+  const params = departamentoId ? `?departamentoId=${departamentoId}` : ''
+  const res = await api.get(`/contratos/luz/disponibles${params}`)
+  contratosDisponibles.value = res.data
+}
+
+async function openNew() {
+  form.value = { ...emptyForm }
+  await cargarContratosDisponibles()
+  showForm.value = true
+}
+async function edit(d) {
+  form.value = { ...d }
+  await cargarContratosDisponibles(d.id)
+  showForm.value = true
+}
 
 async function save() {
   try {
