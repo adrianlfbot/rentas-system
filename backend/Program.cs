@@ -15,7 +15,7 @@ builder.Services.AddDbContext<RentasContext>(opt =>
     opt.UseSqlite($"Data Source={dbPath}"));
 
 // Telegram Bot Service
-// builder.Services.AddHostedService<TelegramBotService>();
+builder.Services.AddHostedService<TelegramBotService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "RentasSystem2026SuperSecretKeyMinimo32Chars!";
