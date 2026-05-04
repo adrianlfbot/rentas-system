@@ -10,8 +10,8 @@ public class TelegramBotService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotService> _logger;
-    private readonly HttpClient _http;
     private readonly string _token = "8704610750:AAHbIu5qzoYqFubWctRHfUFPSFaeAeLg_Eg";
+    private readonly string _apiBase;
     private readonly HashSet<long> _autorizados = new() { 395860686, 6557501745 };
     private int _offset = 0;
 
@@ -19,68 +19,108 @@ public class TelegramBotService : BackgroundService
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _http = new HttpClient
-        {
-            BaseAddress = new Uri($"https://api.telegram.org/bot{_token}/"),
-            Timeout = TimeSpan.FromMinutes(2)
-        };
+        _apiBase = $"https://api.telegram.org/bot{_token}";
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    // Forzar IPv4 — la red del servidor no soporta IPv6 hacia api.telegram.org
+    private static HttpClient MakeClient()
+    {
+        var handler = new System.Net.Http.SocketsHttpHandler();
+        handler.ConnectCallback = async (ctx, ct) =>
+        {
+            var socket = new System.Net.Sockets.Socket(
+                System.Net.Sockets.AddressFamily.InterNetwork,
+                System.Net.Sockets.SocketType.Stream,
+                System.Net.Sockets.ProtocolType.Tcp);
+            socket.NoDelay = true;
+            await socket.ConnectAsync(ctx.DnsEndPoint.Host, ctx.DnsEndPoint.Port, ct);
+            return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+        };
+        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+    }
+
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _ = Task.Run(() => PollLoop(stoppingToken), CancellationToken.None);
+        return Task.CompletedTask;
+    }
+
+    private async Task PollLoop(CancellationToken stoppingToken)
     {
         _logger.LogInformation("🤖 Bot de Rentas iniciado");
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var updates = await GetUpdatesAsync(stoppingToken);
+                var updates = await GetUpdatesAsync();
                 foreach (var update in updates)
                 {
                     _offset = update.UpdateId + 1;
                     if (update.Message?.Text != null)
-                        await ProcessMessageAsync(update.Message, stoppingToken);
+                        _ = Task.Run(() => ProcessMessageAsync(update.Message));
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error polling: {ex.Message}");
-                await Task.Delay(5000, stoppingToken);
+                _logger.LogError($"Error en poll loop: {ex.Message}");
             }
-            await Task.Delay(1000, stoppingToken);
+            await Task.Delay(2000);
         }
     }
 
-    private async Task<List<Update>> GetUpdatesAsync(CancellationToken ct)
+    private async Task<List<Update>> GetUpdatesAsync()
     {
+        using var http = MakeClient();
         try
         {
-            var response = await _http.GetAsync($"getUpdates?offset={_offset}&timeout=10", ct);
+            var url = $"{_apiBase}/getUpdates?offset={_offset}&timeout=0";
+            var response = await http.GetAsync(url).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode) return new();
-            var json = await response.Content.ReadAsStringAsync(ct);
-            var result = JsonSerializer.Deserialize<TelegramResponse>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            return result?.Result ?? new();
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<TelegramResponse>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var updates = result?.Result ?? new();
+            if (updates.Count > 0)
+                _logger.LogInformation($"[Telegram] {updates.Count} mensaje(s) recibidos");
+            return updates;
         }
-        catch { return new(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"[Telegram] GetUpdates: {ex.Message}");
+            return new();
+        }
     }
 
-    private async Task ProcessMessageAsync(Message message, CancellationToken ct)
+    private async Task SendAsync(long chatId, string text)
+    {
+        using var http = MakeClient();
+        try
+        {
+            if (text.Length > 4000) text = text[..4000] + "\n_(truncado)_";
+            var url = $"{_apiBase}/sendMessage";
+            var payload = new { chat_id = chatId, text, parse_mode = "Markdown" };
+            await http.PostAsJsonAsync(url, payload).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"[Telegram] SendMessage: {ex.Message}");
+        }
+    }
+
+    private async Task ProcessMessageAsync(Message message)
     {
         var chatId = message.Chat.Id;
-
-        // Verificar autorización
         if (!_autorizados.Contains(chatId))
         {
-            await SendMessageAsync(chatId, "⛔ No tienes acceso a este bot.", ct);
+            await SendAsync(chatId, "⛔ No tienes acceso a este bot.");
             return;
         }
 
-        var text = message.Text.Trim();
-        var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var command = parts[0].ToLower().Split('@')[0]; // quitar @botname si viene
+        var parts = message.Text!.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var command = parts[0].ToLower().Split('@')[0];
+        _logger.LogInformation($"📩 [{chatId}] {message.Text}");
+
         string reply;
-
-        _logger.LogInformation($"📩 [{chatId}] {text}");
-
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<RentasContext>();
 
@@ -98,36 +138,33 @@ public class TelegramBotService : BackgroundService
                 "/pagar"             => await PagarAsync(db, parts),
                 "/nota"              => await NotaAsync(db, parts),
                 "/ticket"            => await CrearTicketAsync(db, parts, chatId.ToString()),
-                _                    => "❓ Comando no reconocido. Escribe /ayuda para ver los comandos disponibles."
+                _                    => "❓ Comando no reconocido\\. Escribe /ayuda"
             };
         }
         catch (Exception ex)
         {
             reply = $"❌ Error: {ex.Message}";
-            _logger.LogError($"Error procesando comando {command}: {ex.Message}");
+            _logger.LogError($"Error en comando {command}: {ex.Message}");
         }
 
-        await SendMessageAsync(chatId, reply, ct);
+        await SendAsync(chatId, reply);
     }
 
     // ─── COMANDOS ────────────────────────────────────────────────────────────
 
-    private static string AyudaTexto() => """
-        🏠 *Sistema de Rentas - Comandos*
-
-        📋 *Consultas*
-        /deptos — Lista departamentos con inquilino, teléfono y renta
-        /depto \[clave\] — Info detallada de un departamento
-        /resumen — Ingresos cobrados y por cobrar del mes
-        /deudas — Departamentos sin pago registrado este mes
-        /tickets — Tickets abiertos
-        /gastos — Gastos registrados este mes
-
-        ✏️ *Acciones*
-        /pagar \[clave\] \[monto\] \[medio\] — Registrar pago
-        /nota \[clave\] \[texto\] — Agregar nota a un depto
-        /ticket \[prioridad\] \[descripcion\] — Crear ticket \(Alta/Media/Baja\)
-        """;
+    private static string AyudaTexto() =>
+        "🏠 *Sistema de Rentas \\- Comandos*\n\n" +
+        "📋 *Consultas*\n" +
+        "/deptos \\— Lista departamentos con inquilino, teléfono y renta\n" +
+        "/depto \\[clave\\] \\— Info detallada de un departamento\n" +
+        "/resumen \\— Ingresos cobrados y por cobrar del mes\n" +
+        "/deudas \\— Departamentos sin pago este mes\n" +
+        "/tickets \\— Tickets abiertos\n" +
+        "/gastos \\— Gastos del mes\n\n" +
+        "✏️ *Acciones*\n" +
+        "/pagar \\[clave\\] \\[monto\\] \\[medio\\] \\— Registrar pago\n" +
+        "/nota \\[clave\\] \\[texto\\] \\— Agregar nota\n" +
+        "/ticket \\[Alta/Media/Baja\\] \\[descripcion\\] \\— Crear ticket";
 
     private static async Task<string> ResumenAsync(RentasContext db)
     {
@@ -136,38 +173,26 @@ public class TelegramBotService : BackgroundService
         var cobrado = cobros.Where(c => c.FechaCobro != null).Sum(c => c.Monto);
         var porCobrar = cobros.Where(c => c.FechaCobro == null).Sum(c => c.Monto);
         var totalDeptos = await db.Departamentos.CountAsync();
-        return $"""
-            📊 *Resumen {periodo}*
-
-            ✅ Cobrado: ${cobrado:N2}
-            ⏳ Por cobrar: ${porCobrar:N2}
-            💰 Total registrado: ${cobrado + porCobrar:N2}
-            🏢 Total departamentos: {totalDeptos}
-            """;
+        return $"📊 *Resumen {periodo}*\n\n✅ Cobrado: ${cobrado:N2}\n⏳ Por cobrar: ${porCobrar:N2}\n💰 Total: ${cobrado + porCobrar:N2}\n🏢 Departamentos: {totalDeptos}";
     }
 
     private static async Task<string> DeptosAsync(RentasContext db)
     {
         var deptos = await db.Departamentos
-            .Include(d => d.Ubicacion)
-            .Include(d => d.Inquilino)
+            .Include(d => d.Ubicacion).Include(d => d.Inquilino)
             .OrderBy(d => d.Ubicacion!.Calle).ThenBy(d => d.Clave)
             .ToListAsync();
-
         if (!deptos.Any()) return "📭 No hay departamentos registrados.";
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("🏢 *Departamentos*\n");
+        var sb = new System.Text.StringBuilder("🏢 *Departamentos*\n");
         string? ubiActual = null;
         foreach (var d in deptos)
         {
             var ubi = $"{d.Ubicacion?.Calle} {d.Ubicacion?.Numero}";
             if (ubi != ubiActual) { sb.AppendLine($"\n📍 *{ubi}*"); ubiActual = ubi; }
-            var inquilino = d.InquilinoCorreo != null
-                ? $"{d.InquilinoCorreo}{(d.Inquilino?.Telefono != null ? $" | 📞{d.Inquilino.Telefono}" : "")}"
-                : "Vacío";
+            var tel = d.Inquilino?.Telefono != null ? $" | 📞{d.Inquilino.Telefono}" : "";
+            var inq = d.InquilinoCorreo != null ? $"{d.InquilinoCorreo}{tel}" : "Vacío";
             var renta = d.MontoRenta > 0 ? $"${d.MontoRenta:N0}" : "—";
-            sb.AppendLine($"  *{d.Clave}* — {inquilino} — {renta}");
+            sb.AppendLine($"  *{d.Clave}* — {inq} — {renta}");
         }
         return sb.ToString();
     }
@@ -175,190 +200,95 @@ public class TelegramBotService : BackgroundService
     private static async Task<string> DeptoAsync(RentasContext db, string[] parts)
     {
         if (parts.Length < 2) return "❌ Uso: /depto \\[clave\\]";
-        var clave = parts[1];
-        var d = await db.Departamentos
-            .Include(d => d.Ubicacion)
-            .Include(d => d.Inquilino)
-            .Include(d => d.ContratoLuz)
-            .FirstOrDefaultAsync(d => d.Clave == clave);
-        if (d == null) return $"❌ Departamento '{clave}' no encontrado.";
-
+        var d = await db.Departamentos.Include(d => d.Ubicacion).Include(d => d.Inquilino)
+            .Include(d => d.ContratoLuz).FirstOrDefaultAsync(d => d.Clave == parts[1]);
+        if (d == null) return $"❌ Depto '{parts[1]}' no encontrado.";
         var periodo = DateTime.Now.ToString("yyyy-MM");
-        var pagos = await db.Cobranza.Where(c => c.ClaveDepartamento == clave && c.Periodo == periodo).ToListAsync();
-        var pagado = pagos.Sum(c => c.Monto);
-
-        return $"""
-            🏠 *Depto {d.Clave}*
-            📍 {d.Ubicacion?.Calle} {d.Ubicacion?.Numero}
-            📝 {d.Descripcion ?? "—"}
-            👤 {d.InquilinoCorreo ?? "Vacío"}
-            📞 {d.Inquilino?.Telefono ?? "—"}
-            💰 Renta: ${d.MontoRenta:N0}
-            💧 Agua: ${d.CuotaAgua:N0}
-            📅 Día cobro: {d.DiaVencimiento}
-            ⚡ Contrato luz: {d.ContratoLuz?.Nombre ?? "—"}
-            💳 Pagado este mes: ${pagado:N2}
-            """;
+        var pagado = await db.Cobranza.Where(c => c.ClaveDepartamento == d.Clave && c.Periodo == periodo).SumAsync(c => c.Monto);
+        return $"🏠 *Depto {d.Clave}*\n📍 {d.Ubicacion?.Calle} {d.Ubicacion?.Numero}\n👤 {d.InquilinoCorreo ?? "Vacío"}\n📞 {d.Inquilino?.Telefono ?? "—"}\n💰 Renta: ${d.MontoRenta:N0}\n💧 Agua: ${d.CuotaAgua:N0}\n📅 Día cobro: {d.DiaVencimiento}\n⚡ Contrato: {d.ContratoLuz?.Nombre ?? "—"}\n💳 Pagado este mes: ${pagado:N2}";
     }
 
     private static async Task<string> DeudasAsync(RentasContext db)
     {
         var periodo = DateTime.Now.ToString("yyyy-MM");
-        var deptos = await db.Departamentos
-            .Include(d => d.Ubicacion)
-            .Where(d => d.InquilinoCorreo != null && d.MontoRenta > 0)
-            .ToListAsync();
-
-        var conPago = await db.Cobranza
-            .Where(c => c.Periodo == periodo && c.FechaCobro != null)
-            .Select(c => c.ClaveDepartamento)
-            .ToListAsync();
-
-        var sinPago = deptos.Where(d => !conPago.Contains(d.Clave)).ToList();
-        if (!sinPago.Any()) return $"✅ Todos los departamentos tienen pago registrado en {periodo}.";
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"⚠️ *Sin pago en {periodo}*\n");
-        foreach (var d in sinPago.OrderBy(d => d.Ubicacion?.Calle).ThenBy(d => d.Clave))
+        var deptos = await db.Departamentos.Include(d => d.Ubicacion)
+            .Where(d => d.InquilinoCorreo != null && d.MontoRenta > 0).ToListAsync();
+        var conPago = await db.Cobranza.Where(c => c.Periodo == periodo && c.FechaCobro != null)
+            .Select(c => c.ClaveDepartamento).ToListAsync();
+        var sinPago = deptos.Where(d => !conPago.Contains(d.Clave)).OrderBy(d => d.Ubicacion?.Calle).ThenBy(d => d.Clave).ToList();
+        if (!sinPago.Any()) return $"✅ Todos pagaron en {periodo}.";
+        var sb = new System.Text.StringBuilder($"⚠️ *Sin pago en {periodo}*\n\n");
+        foreach (var d in sinPago)
             sb.AppendLine($"• {d.Ubicacion?.Calle} {d.Ubicacion?.Numero} — *{d.Clave}* — ${d.MontoRenta:N0}");
-
-        var total = sinPago.Sum(d => d.MontoRenta);
-        sb.AppendLine($"\n💰 Total pendiente: ${total:N0}");
+        sb.AppendLine($"\n💰 Total pendiente: ${sinPago.Sum(d => d.MontoRenta):N0}");
         return sb.ToString();
     }
 
     private static async Task<string> TicketsAsync(RentasContext db)
     {
-        var tickets = await db.Tickets
-            .Where(t => t.Estado != "Cerrado")
-            .OrderBy(t => t.Prioridad == "Alta" ? 0 : t.Prioridad == "Media" ? 1 : 2)
-            .ThenBy(t => t.FechaCreacion)
-            .ToListAsync();
-
+        var tickets = await db.Tickets.Where(t => t.Estado != "Cerrado")
+            .OrderBy(t => t.Prioridad == "Alta" ? 0 : t.Prioridad == "Media" ? 1 : 2).ThenBy(t => t.FechaCreacion).ToListAsync();
         if (!tickets.Any()) return "✅ No hay tickets abiertos.";
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"🎫 *Tickets abiertos ({tickets.Count})*\n");
+        var sb = new System.Text.StringBuilder($"🎫 *Tickets abiertos ({tickets.Count})*\n\n");
         foreach (var t in tickets)
         {
             var icon = t.Prioridad == "Alta" ? "🔴" : t.Prioridad == "Media" ? "🟡" : "🟢";
-            sb.AppendLine($"{icon} *#{t.ID}* [{t.Estado}] {t.Descripcion}");
-            sb.AppendLine($"   👤 {t.UsuarioCreo} — {t.FechaCreacion:dd/MM/yyyy}");
+            sb.AppendLine($"{icon} *\\#{t.ID}* \\[{t.Estado}\\] {t.Descripcion}");
         }
         return sb.ToString();
     }
 
     private static async Task<string> GastosAsync(RentasContext db)
     {
-        var inicio = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var fin = inicio.AddMonths(1);
-        var gastos = await db.Gastos
-            .Include(g => g.Departamento).ThenInclude(d => d!.Ubicacion)
-            .Where(g => g.Fecha >= inicio && g.Fecha < fin)
-            .OrderBy(g => g.Fecha)
-            .ToListAsync();
-
-        if (!gastos.Any()) return $"📭 No hay gastos registrados en {inicio:MMMM yyyy}.";
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"💸 *Gastos {inicio:MMMM yyyy}*\n");
+        var ini = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var gastos = await db.Gastos.Include(g => g.Departamento).ThenInclude(d => d!.Ubicacion)
+            .Where(g => g.Fecha >= ini && g.Fecha < ini.AddMonths(1)).OrderBy(g => g.Fecha).ToListAsync();
+        if (!gastos.Any()) return $"📭 No hay gastos en {ini:MMMM yyyy}.";
+        var sb = new System.Text.StringBuilder($"💸 *Gastos {ini:MMMM yyyy}*\n\n");
         foreach (var g in gastos)
-        {
-            var total = g.ManoDeObra + g.Material;
-            sb.AppendLine($"• {g.Departamento?.Ubicacion?.Calle} *{g.Departamento?.Clave}* — {g.Descripcion ?? "Sin desc."} — ${total:N0}");
-        }
-        var totalGastos = gastos.Sum(g => g.ManoDeObra + g.Material);
-        sb.AppendLine($"\n💰 Total: ${totalGastos:N0}");
+            sb.AppendLine($"• {g.Departamento?.Clave} — {g.Descripcion ?? "Sin desc."} — ${g.ManoDeObra + g.Material:N0}");
+        sb.AppendLine($"\n💰 Total: ${gastos.Sum(g => g.ManoDeObra + g.Material):N0}");
         return sb.ToString();
     }
 
     private static async Task<string> PagarAsync(RentasContext db, string[] parts)
     {
-        if (parts.Length < 3) return "❌ Uso: /pagar \\[clave\\] \\[monto\\] \\[medio opcional\\]";
-        var clave = parts[1];
+        if (parts.Length < 3) return "❌ Uso: /pagar \\[clave\\] \\[monto\\] \\[medio\\]";
         if (!double.TryParse(parts[2], out double monto)) return "❌ Monto inválido.";
+        var depto = await db.Departamentos.Include(d => d.Ubicacion).FirstOrDefaultAsync(d => d.Clave == parts[1]);
+        if (depto == null) return $"❌ Depto '{parts[1]}' no encontrado.";
         var medio = parts.Length > 3 ? string.Join(" ", parts.Skip(3)) : "Telegram";
-
-        var depto = await db.Departamentos
-            .Include(d => d.Ubicacion)
-            .FirstOrDefaultAsync(d => d.Clave == clave);
-        if (depto == null) return $"❌ Departamento '{clave}' no encontrado.";
-
-        db.Cobranza.Add(new Cobranza
-        {
-            IDUbicacion = depto.IDUbicacion,
-            ClaveDepartamento = depto.Clave,
-            Periodo = DateTime.Now.ToString("yyyy-MM"),
-            Monto = monto,
-            FechaCobro = DateTime.Now,
-            Medio = medio
-        });
+        db.Cobranza.Add(new Cobranza { IDUbicacion = depto.IDUbicacion, ClaveDepartamento = depto.Clave, Periodo = DateTime.Now.ToString("yyyy-MM"), Monto = monto, FechaCobro = DateTime.Now, Medio = medio });
         await db.SaveChangesAsync();
-        return $"✅ Pago registrado\n🏠 Depto: *{clave}*\n💰 Monto: ${monto:N2}\n💳 Medio: {medio}\n📅 {DateTime.Now:dd/MM/yyyy HH:mm}";
+        return $"✅ Pago registrado\n🏠 Depto: *{depto.Clave}*\n💰 Monto: ${monto:N2}\n💳 Medio: {medio}\n📅 {DateTime.Now:dd/MM/yyyy HH:mm}";
     }
 
     private static async Task<string> NotaAsync(RentasContext db, string[] parts)
     {
         if (parts.Length < 3) return "❌ Uso: /nota \\[clave\\] \\[texto\\]";
-        var clave = parts[1];
+        var depto = await db.Departamentos.FirstOrDefaultAsync(d => d.Clave == parts[1]);
+        if (depto == null) return $"❌ Depto '{parts[1]}' no encontrado.";
         var texto = string.Join(" ", parts.Skip(2));
-
-        var depto = await db.Departamentos.FirstOrDefaultAsync(d => d.Clave == clave);
-        if (depto == null) return $"❌ Departamento '{clave}' no encontrado.";
-
-        db.NotasDepartamento.Add(new NotaDepartamento
-        {
-            DepartamentoId = depto.ID,
-            Texto = texto,
-            UsuarioCreo = "@TelegramBot"
-        });
+        db.NotasDepartamento.Add(new NotaDepartamento { DepartamentoId = depto.ID, Texto = texto, UsuarioCreo = "@TelegramBot" });
         await db.SaveChangesAsync();
-        return $"✅ Nota agregada al depto *{clave}*:\n_{texto}_";
+        return $"✅ Nota agregada al depto *{depto.Clave}*";
     }
 
     private static async Task<string> CrearTicketAsync(RentasContext db, string[] parts, string chatId)
     {
         if (parts.Length < 3) return "❌ Uso: /ticket \\[Alta/Media/Baja\\] \\[descripcion\\]";
         var prioridad = parts[1];
-        if (!new[] { "Alta", "Media", "Baja" }.Contains(prioridad, StringComparer.OrdinalIgnoreCase))
-            return "❌ Prioridad debe ser: Alta, Media o Baja";
-        var descripcion = string.Join(" ", parts.Skip(2));
-
-        var ticket = new Ticket
-        {
-            Prioridad = char.ToUpper(prioridad[0]) + prioridad[1..].ToLower(),
-            Descripcion = descripcion,
-            UsuarioCreo = $"Telegram:{chatId}",
-            Estado = "Abierto",
-            FechaCreacion = DateTime.UtcNow
-        };
-        db.Tickets.Add(ticket);
+        if (!new[] { "Alta", "Media", "Baja" }.Contains(prioridad, StringComparer.OrdinalIgnoreCase)) return "❌ Prioridad: Alta, Media o Baja";
+        var desc = string.Join(" ", parts.Skip(2));
+        var t = new Ticket { Prioridad = char.ToUpper(prioridad[0]) + prioridad[1..].ToLower(), Descripcion = desc, UsuarioCreo = $"Telegram:{chatId}", Estado = "Abierto", FechaCreacion = DateTime.UtcNow };
+        db.Tickets.Add(t);
         await db.SaveChangesAsync();
-        return $"✅ Ticket creado\n🎫 *#{ticket.ID}*\n{(ticket.Prioridad == "Alta" ? "🔴" : ticket.Prioridad == "Media" ? "🟡" : "🟢")} Prioridad: {ticket.Prioridad}\n📝 {descripcion}";
+        var icon = t.Prioridad == "Alta" ? "🔴" : t.Prioridad == "Media" ? "🟡" : "🟢";
+        return $"✅ Ticket creado\n🎫 *\\#{t.ID}*\n{icon} {t.Prioridad}\n📝 {desc}";
     }
 
-    // ─── HELPERS ─────────────────────────────────────────────────────────────
-
-    private async Task SendMessageAsync(long chatId, string text, CancellationToken ct)
-    {
-        try
-        {
-            // Telegram tiene límite de 4096 chars por mensaje
-            if (text.Length > 4000)
-                text = text[..4000] + "\n\n_(mensaje truncado)_";
-
-            var payload = new { chat_id = chatId, text, parse_mode = "Markdown" };
-            await _http.PostAsJsonAsync("sendMessage", payload, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Error enviando mensaje: {ex.Message}");
-        }
-    }
-
-    // ─── MODELOS TELEGRAM ─────────────────────────────────────────────────────
-
-    public class TelegramResponse { public bool Ok { get; set; } public List<Update> Result { get; set; } = new(); }
+    // ─── MODELOS ─────────────────────────────────────────────────────────────
+    public class TelegramResponse { public List<Update> Result { get; set; } = new(); }
     public class Update { [JsonPropertyName("update_id")] public int UpdateId { get; set; } public Message? Message { get; set; } }
     public class Message { public Chat Chat { get; set; } = new(); public string? Text { get; set; } }
     public class Chat { public long Id { get; set; } }
