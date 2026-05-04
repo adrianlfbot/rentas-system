@@ -164,7 +164,11 @@ public class TelegramBotService : BackgroundService
         "✏️ *Acciones*\n" +
         "/pagar \\[clave\\] \\[monto\\] \\[medio\\] \\— Registrar pago\n" +
         "/nota \\[clave\\] \\[texto\\] \\— Agregar nota\n" +
-        "/ticket \\[Alta/Media/Baja\\] \\[descripcion\\] \\— Crear ticket";
+        "/ticket \\[Alta/Media/Baja\\] \\[desc\\] \\— Crear ticket\n\n" +
+        "📌 *Prefijos de ubicación*\n" +
+        "Agrega la primera letra de la ubicación antes de la clave:\n" +
+        "C1 = Chalchihuecan 1 | S3 = Salchipulpos 3\n" +
+        "F2 = Fragua 2 | D1 = Dos de Abril 1";
 
     private static async Task<string> ResumenAsync(RentasContext db)
     {
@@ -197,12 +201,56 @@ public class TelegramBotService : BackgroundService
         return sb.ToString();
     }
 
+    /// Resuelve un departamento por clave compuesta: primera letra(s) de ubicación + clave
+    /// Ejemplos: C1 = Chalchihuecan-1, S1 = Salchipulpos-1, F1 = Fragua-1
+    /// Si no hay prefijo de letra, busca por clave sola (comportamiento anterior)
+    private static async Task<(Departamento?, string)> ResolverDepto(RentasContext db, string input)
+    {
+        input = input.Trim();
+        // Separar prefijo de letras y clave numérica/alfanumérica
+        int i = 0;
+        while (i < input.Length && char.IsLetter(input[i])) i++;
+
+        if (i > 0 && i < input.Length)
+        {
+            // Hay prefijo: buscar ubicación cuya calle empiece con esas letras
+            var prefijo = input[..i].ToLower();
+            var clave = input[i..];
+            var deptos = await db.Departamentos
+                .Include(d => d.Ubicacion)
+                .Include(d => d.Inquilino)
+                .Include(d => d.ContratoLuz)
+                .Where(d => d.Clave == clave)
+                .ToListAsync();
+            var d = deptos.FirstOrDefault(d =>
+                d.Ubicacion != null &&
+                d.Ubicacion.Calle.ToLower().StartsWith(prefijo));
+            if (d == null)
+                return (null, $"❌ No se encontró depto con clave '{clave}' en ubicación que empiece con '{prefijo.ToUpper()}'.");
+            return (d, "");
+        }
+        else
+        {
+            // Sin prefijo: buscar por clave sola
+            var deptos = await db.Departamentos
+                .Include(d => d.Ubicacion)
+                .Include(d => d.Inquilino)
+                .Include(d => d.ContratoLuz)
+                .Where(d => d.Clave == input)
+                .ToListAsync();
+            if (deptos.Count == 0)
+                return (null, $"❌ Depto '{input}' no encontrado.");
+            if (deptos.Count > 1)
+                return (null, $"⚠️ Hay {deptos.Count} deptos con clave '{input}'. Usa prefijo de ubicación: C{input}, S{input}, F{input}...");
+            return (deptos[0], "");
+        }
+    }
+
     private static async Task<string> DeptoAsync(RentasContext db, string[] parts)
     {
-        if (parts.Length < 2) return "❌ Uso: /depto \\[clave\\]";
-        var d = await db.Departamentos.Include(d => d.Ubicacion).Include(d => d.Inquilino)
-            .Include(d => d.ContratoLuz).FirstOrDefaultAsync(d => d.Clave == parts[1]);
-        if (d == null) return $"❌ Depto '{parts[1]}' no encontrado.";
+        if (parts.Length < 2) return "❌ Uso: /depto \\[clave\\] — Ej: /depto C1, /depto S1, /depto FA";
+        var (d, err) = await ResolverDepto(db, parts[1]);
+        if (d == null) return err;
         var periodo = DateTime.Now.ToString("yyyy-MM");
         var pagado = await db.Cobranza.Where(c => c.ClaveDepartamento == d.Clave && c.Periodo == periodo).SumAsync(c => c.Monto);
         return $"🏠 *Depto {d.Clave}*\n📍 {d.Ubicacion?.Calle} {d.Ubicacion?.Numero}\n👤 {d.InquilinoCorreo ?? "Vacío"}\n📞 {d.Inquilino?.Telefono ?? "—"}\n💰 Renta: ${d.MontoRenta:N0}\n💧 Agua: ${d.CuotaAgua:N0}\n📅 Día cobro: {d.DiaVencimiento}\n⚡ Contrato: {d.ContratoLuz?.Nombre ?? "—"}\n💳 Pagado este mes: ${pagado:N2}";
@@ -253,10 +301,10 @@ public class TelegramBotService : BackgroundService
 
     private static async Task<string> PagarAsync(RentasContext db, string[] parts)
     {
-        if (parts.Length < 3) return "❌ Uso: /pagar \\[clave\\] \\[monto\\] \\[medio\\]";
+        if (parts.Length < 3) return "❌ Uso: /pagar \\[clave\\] \\[monto\\] \\[medio\\] — Ej: /pagar C1 5600, /pagar S3 6800 Transferencia";
         if (!double.TryParse(parts[2], out double monto)) return "❌ Monto inválido.";
-        var depto = await db.Departamentos.Include(d => d.Ubicacion).FirstOrDefaultAsync(d => d.Clave == parts[1]);
-        if (depto == null) return $"❌ Depto '{parts[1]}' no encontrado.";
+        var (depto, err) = await ResolverDepto(db, parts[1]);
+        if (depto == null) return err;
         var medio = parts.Length > 3 ? string.Join(" ", parts.Skip(3)) : "Telegram";
         db.Cobranza.Add(new Cobranza { IDUbicacion = depto.IDUbicacion, ClaveDepartamento = depto.Clave, Periodo = DateTime.Now.ToString("yyyy-MM"), Monto = monto, FechaCobro = DateTime.Now, Medio = medio });
         await db.SaveChangesAsync();
@@ -265,9 +313,9 @@ public class TelegramBotService : BackgroundService
 
     private static async Task<string> NotaAsync(RentasContext db, string[] parts)
     {
-        if (parts.Length < 3) return "❌ Uso: /nota \\[clave\\] \\[texto\\]";
-        var depto = await db.Departamentos.FirstOrDefaultAsync(d => d.Clave == parts[1]);
-        if (depto == null) return $"❌ Depto '{parts[1]}' no encontrado.";
+        if (parts.Length < 3) return "❌ Uso: /nota \\[clave\\] \\[texto\\] — Ej: /nota C1 Pagará el día 5";
+        var (depto, err) = await ResolverDepto(db, parts[1]);
+        if (depto == null) return err;
         var texto = string.Join(" ", parts.Skip(2));
         db.NotasDepartamento.Add(new NotaDepartamento { DepartamentoId = depto.ID, Texto = texto, UsuarioCreo = "@TelegramBot" });
         await db.SaveChangesAsync();
