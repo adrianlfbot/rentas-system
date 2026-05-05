@@ -201,49 +201,52 @@ public class TelegramBotService : BackgroundService
         return sb.ToString();
     }
 
-    /// Resuelve un departamento por clave compuesta: primera letra(s) de ubicación + clave
-    /// Ejemplos: C1 = Chalchihuecan-1, S1 = Salchipulpos-1, F1 = Fragua-1
-    /// Si no hay prefijo de letra, busca por clave sola (comportamiento anterior)
+    /// Resuelve un departamento por clave compuesta: PRIMERA LETRA = prefijo ubicación, resto = clave
+    /// Ejemplos: C1=Chalchihuecan-1, S3=Salchipulpos-3, DTokio=Dos de Abril-Tokio, FA=Fragua-A
+    /// Si la primera letra coincide con una ubicación y el resto es una clave válida, usa prefijo.
+    /// Si no, busca por clave completa (para claves únicas en el sistema).
     private static async Task<(Departamento?, string)> ResolverDepto(RentasContext db, string input)
     {
         input = input.Trim();
-        // Separar prefijo de letras y clave numérica/alfanumérica
-        int i = 0;
-        while (i < input.Length && char.IsLetter(input[i])) i++;
 
-        if (i > 0 && i < input.Length)
+        // Intentar con prefijo: primera letra = inicio de nombre de ubicación, resto = clave
+        if (input.Length > 1)
         {
-            // Hay prefijo: buscar ubicación cuya calle empiece con esas letras
-            var prefijo = input[..i].ToLower();
-            var clave = input[i..];
+            var prefijo = input[..1].ToLower();
+            var clave = input[1..];
+
             var deptos = await db.Departamentos
                 .Include(d => d.Ubicacion)
                 .Include(d => d.Inquilino)
                 .Include(d => d.ContratoLuz)
                 .Where(d => d.Clave == clave)
                 .ToListAsync();
-            var d = deptos.FirstOrDefault(d =>
+
+            var conPrefijo = deptos.Where(d =>
                 d.Ubicacion != null &&
-                d.Ubicacion.Calle.ToLower().StartsWith(prefijo));
-            if (d == null)
-                return (null, $"❌ No se encontró depto con clave '{clave}' en ubicación que empiece con '{prefijo.ToUpper()}'.");
-            return (d, "");
+                d.Ubicacion.Calle.ToLower().StartsWith(prefijo)).ToList();
+
+            if (conPrefijo.Count == 1)
+                return (conPrefijo[0], "");
+
+            if (conPrefijo.Count > 1)
+                return (null, $"⚠️ Hay {conPrefijo.Count} deptos '{clave}' en ubicaciones que empiezan con '{prefijo.ToUpper()}'. Sé más específico.");
         }
-        else
-        {
-            // Sin prefijo: buscar por clave sola
-            var deptos = await db.Departamentos
-                .Include(d => d.Ubicacion)
-                .Include(d => d.Inquilino)
-                .Include(d => d.ContratoLuz)
-                .Where(d => d.Clave == input)
-                .ToListAsync();
-            if (deptos.Count == 0)
-                return (null, $"❌ Depto '{input}' no encontrado.");
-            if (deptos.Count > 1)
-                return (null, $"⚠️ Hay {deptos.Count} deptos con clave '{input}'. Usa prefijo de ubicación: C{input}, S{input}, F{input}...");
-            return (deptos[0], "");
-        }
+
+        // Fallback: buscar por clave completa
+        var todos = await db.Departamentos
+            .Include(d => d.Ubicacion)
+            .Include(d => d.Inquilino)
+            .Include(d => d.ContratoLuz)
+            .Where(d => d.Clave == input)
+            .ToListAsync();
+
+        if (todos.Count == 0)
+            return (null, $"❌ Depto '{input}' no encontrado. Usa prefijo: C1, S3, DTokio, FA...");
+        if (todos.Count > 1)
+            return (null, $"⚠️ Hay {todos.Count} deptos con clave '{input}'. Agrega prefijo de ubicación: C{input}, S{input}...");
+
+        return (todos[0], "");
     }
 
     private static async Task<string> DeptoAsync(RentasContext db, string[] parts)
