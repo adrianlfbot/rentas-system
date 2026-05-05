@@ -142,7 +142,7 @@ const checklistDias = computed(() => {
   // Agrupar departamentos por día de vencimiento
   const grupos = {}
   departamentosData.value
-    .filter(d => d.montoRenta > 0 && d.inquilinoCorreo)
+    .filter(d => d.montoRenta > 0)
     .forEach(d => {
       const dia = d.diaVencimiento || 1
       if (!grupos[dia]) grupos[dia] = []
