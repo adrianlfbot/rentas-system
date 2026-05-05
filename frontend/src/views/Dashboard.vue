@@ -147,9 +147,10 @@ const checklistDias = computed(() => {
       const dia = d.diaVencimiento || 1
       if (!grupos[dia]) grupos[dia] = []
 
-      // Ver si tiene pago en el mes actual
+      // Ver si tiene pago en el mes actual (filtrando por ubicación + clave para evitar colisiones)
       const pagos = cobranzaData.value.filter(c =>
         c.claveDepartamento === d.clave &&
+        c.idUbicacion === d.idUbicacion &&
         c.periodo?.startsWith(periodo) &&
         c.fechaCobro
       )
