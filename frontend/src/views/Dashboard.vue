@@ -39,6 +39,44 @@
         </div>
       </div>
 
+      <!-- Checklist de pagos por día de cobro -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold">✅ Estado de Pagos — {{ mesActualNombre }}</h2>
+          <div class="flex gap-2 text-xs">
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Pagó</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span> Pendiente</span>
+          </div>
+        </div>
+
+        <div v-if="checklistDias.length === 0" class="text-gray-500 text-sm">Sin departamentos con renta registrada.</div>
+
+        <div v-for="grupo in checklistDias" :key="grupo.dia" class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-300">📅 Día {{ grupo.dia }} del mes</h3>
+            <span class="text-xs text-gray-500">
+              {{ grupo.pagados }} / {{ grupo.deptos.length }} pagaron
+              — ${{ formatMoney(grupo.montoCobrado) }} de ${{ formatMoney(grupo.montoTotal) }}
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div v-for="d in grupo.deptos" :key="d.id"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg border"
+              :class="d.pago ? 'border-emerald-800 bg-emerald-900/20' : 'border-red-800 bg-red-900/10'">
+              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="d.pago ? 'bg-emerald-400' : 'bg-red-400'"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate">{{ d.ubicacion }} — <span class="font-mono">{{ d.clave }}</span></p>
+                <p class="text-xs text-gray-500 truncate">{{ d.inquilino || 'Sin inquilino' }}</p>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <p class="text-xs font-bold" :class="d.pago ? 'text-emerald-400' : 'text-red-400'">${{ formatMoney(d.monto) }}</p>
+                <p v-if="d.pago" class="text-xs text-gray-500">{{ d.fechaPago }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Fila 2: Ingresos por Ubicación -->
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <h2 class="text-lg font-bold mb-1">🏘️ Ingresos por Ubicación</h2>
@@ -94,6 +132,53 @@ const stats = ref([])
 const cobranzaData = ref([])
 const departamentosData = ref([])
 const ubicacionesData = ref([])
+
+// ─── Checklist de pagos por día de cobro ─────────────────────────────────────
+const checklistDias = computed(() => {
+  if (!departamentosData.value.length) return []
+  const now = new Date()
+  const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // Agrupar departamentos por día de vencimiento
+  const grupos = {}
+  departamentosData.value
+    .filter(d => d.montoRenta > 0 && d.inquilinoCorreo)
+    .forEach(d => {
+      const dia = d.diaVencimiento || 1
+      if (!grupos[dia]) grupos[dia] = []
+
+      // Ver si tiene pago en el mes actual
+      const pagos = cobranzaData.value.filter(c =>
+        c.claveDepartamento === d.clave &&
+        c.periodo?.startsWith(periodo) &&
+        c.fechaCobro
+      )
+      const pago = pagos.length > 0
+      const montoPagado = pagos.reduce((s, c) => s + (c.monto || 0), 0)
+
+      const ubi = ubicacionesData.value.find(u => u.idUbicacion === d.idUbicacion)
+      grupos[dia].push({
+        id: d.id,
+        ubicacion: ubi ? `${ubi.calle} ${ubi.numero}` : `Ubic. ${d.idUbicacion}`,
+        clave: d.clave,
+        inquilino: d.inquilinoCorreo,
+        monto: d.montoRenta,
+        pago,
+        montoPagado,
+        fechaPago: pago ? pagos[0].fechaCobro?.split('T')[0] : null
+      })
+    })
+
+  return Object.entries(grupos)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([dia, deptos]) => ({
+      dia: Number(dia),
+      deptos: deptos.sort((a, b) => a.ubicacion.localeCompare(b.ubicacion) || a.clave.localeCompare(b.clave)),
+      pagados: deptos.filter(d => d.pago).length,
+      montoTotal: deptos.reduce((s, d) => s + d.monto, 0),
+      montoCobrado: deptos.reduce((s, d) => s + (d.pago ? d.monto : 0), 0)
+    }))
+})
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
