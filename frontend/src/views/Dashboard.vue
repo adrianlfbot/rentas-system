@@ -237,7 +237,7 @@ function abrirPago(d) {
   pagoDepto.value = d
   pagoForm.value = {
     monto: d.monto,
-    medio: 'Efectivo',
+    medio: 'Transferencia',
     fecha: new Date().toISOString().split('T')[0]
   }
   showPagoModal.value = true
