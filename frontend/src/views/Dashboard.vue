@@ -72,10 +72,53 @@
                 <p class="text-xs font-bold" :class="d.pago ? 'text-emerald-400' : 'text-red-400'">${{ formatMoney(d.monto) }}</p>
                 <p v-if="d.pago" class="text-xs text-gray-500">{{ d.fechaPago }}</p>
               </div>
+              <button v-if="!d.pago" @click="abrirPago(d)"
+                class="flex-shrink-0 text-xs px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded-lg font-medium transition-colors">
+                💰
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+    <!-- Modal Capturar Pago -->
+    <div v-if="showPagoModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-sm">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold">💰 Registrar Pago</h2>
+          <button @click="showPagoModal = false" class="text-gray-400 hover:text-white">✕</button>
+        </div>
+        <div class="space-y-3 mb-4">
+          <div class="bg-gray-800 rounded-lg px-4 py-3 text-sm">
+            <p class="text-gray-400">Departamento</p>
+            <p class="font-bold">{{ pagoDepto?.ubicacion }} — <span class="font-mono">{{ pagoDepto?.clave }}</span></p>
+            <p class="text-gray-400 text-xs">{{ pagoDepto?.inquilino }}</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Monto $</label>
+            <input v-model.number="pagoForm.monto" type="number" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Medio de pago</label>
+            <select v-model="pagoForm.medio" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+              <option>Efectivo</option>
+              <option>Transferencia</option>
+              <option>Tarjeta</option>
+              <option>Cheque</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Fecha de cobro</label>
+            <input v-model="pagoForm.fecha" type="date" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button @click="showPagoModal = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
+          <button @click="guardarPago" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">Guardar Pago</button>
+        </div>
+      </div>
+    </div>
 
       <!-- Fila 2: Ingresos por Ubicación -->
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
@@ -124,6 +167,9 @@ import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
+
+const { success, error: toastError } = useToast()
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -160,6 +206,7 @@ const checklistDias = computed(() => {
       const ubi = ubicacionesData.value.find(u => u.idUbicacion === d.idUbicacion)
       grupos[dia].push({
         id: d.id,
+        idUbicacion: d.idUbicacion,
         ubicacion: ubi ? `${ubi.calle} ${ubi.numero}` : `Ubic. ${d.idUbicacion}`,
         clave: d.clave,
         inquilino: d.inquilinoCorreo,
@@ -180,6 +227,44 @@ const checklistDias = computed(() => {
       montoCobrado: deptos.reduce((s, d) => s + (d.pago ? d.monto : 0), 0)
     }))
 })
+
+// ─── Modal Capturar Pago ─────────────────────────────────────────────────────
+const showPagoModal = ref(false)
+const pagoDepto = ref(null)
+const pagoForm = ref({ monto: 0, medio: 'Efectivo', fecha: '' })
+
+function abrirPago(d) {
+  pagoDepto.value = d
+  pagoForm.value = {
+    monto: d.monto,
+    medio: 'Efectivo',
+    fecha: new Date().toISOString().split('T')[0]
+  }
+  showPagoModal.value = true
+}
+
+async function guardarPago() {
+  const d = pagoDepto.value
+  const now = new Date()
+  const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  try {
+    await api.post('/cobranza', {
+      idUbicacion: d.idUbicacion,
+      claveDepartamento: d.clave,
+      periodo,
+      monto: pagoForm.value.monto,
+      fechaCobro: pagoForm.value.fecha ? new Date(pagoForm.value.fecha + 'T12:00:00').toISOString() : new Date().toISOString(),
+      medio: pagoForm.value.medio
+    })
+    success(`Pago de $${pagoForm.value.monto.toLocaleString()} registrado para ${d.clave}`)
+    showPagoModal.value = false
+    // Recargar cobranza
+    const res = await api.get('/cobranza')
+    cobranzaData.value = res.data
+  } catch (e) {
+    toastError('Error al guardar: ' + (e.response?.data?.message || e.message))
+  }
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
