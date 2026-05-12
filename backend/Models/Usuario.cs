@@ -16,4 +16,7 @@ public class Usuario
     [ForeignKey("INE")]
     public Adjunto? INEAdjunto { get; set; }
     public string? Telefono { get; set; }
+    public string? Ocupacion { get; set; }
+    public string? Corresponsable { get; set; }
+    public string? DomicilioNotificaciones { get; set; }
 }

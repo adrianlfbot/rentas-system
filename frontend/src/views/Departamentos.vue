@@ -48,6 +48,7 @@
             </td>
             <td class="px-4 py-3 space-x-2 flex">
               <button @click="openNotas(d)" class="text-yellow-400 hover:text-yellow-300" title="Notas">📝</button>
+              <button @click="openContrato(d)" class="text-purple-400 hover:text-purple-300" title="Generar Contrato">📄</button>
               <button @click="edit(d)" class="text-blue-400 hover:text-blue-300" title="Editar">✏️</button>
               <button @click="remove(d.id)" class="text-red-400 hover:text-red-300" title="Eliminar">🗑️</button>
             </td>
@@ -84,6 +85,8 @@
           <input v-model.number="form.diaVencimiento" type="number" min="1" max="31" placeholder="Día vencimiento (1-31)" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
           <textarea v-model="form.descripcionPublicacion" placeholder="Descripción para publicación (con emojis)" rows="3" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"></textarea>
           <input v-model="form.inquilinoCorreo" placeholder="Correo inquilino (vacío = disponible)" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
+          <input v-model.number="form.maxOcupantes" type="number" min="0" placeholder="Máx. ocupantes" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500" />
+          <textarea v-model="form.instalaciones" placeholder="Instalaciones entregadas (ej: estufa, refrigerador, boiler...)" rows="2" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"></textarea>
           <div class="flex gap-2 justify-end mt-4">
             <button type="button" @click="showForm = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
             <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium">Guardar</button>
@@ -92,6 +95,53 @@
 
         <!-- Adjuntos -->
         <FileUploader v-if="form.id" tipo="Departamento" :id-padre="form.id" />
+      </div>
+    </div>
+
+    <!-- Modal Generar Contrato -->
+    <div v-if="showContrato" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold">📄 Generar Contrato — {{ contratoDepto?.clave }}</h2>
+          <button @click="showContrato = false" class="text-gray-400 hover:text-white">✕</button>
+        </div>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block">Fecha inicio</label>
+              <input v-model="contratoForm.fechaIni" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block">Fecha fin</label>
+              <input v-model="contratoForm.fechaFin" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Máx. ocupantes</label>
+            <input v-model.number="contratoForm.maxOcupantes" type="number" min="0" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Ocupación del inquilino</label>
+            <input v-model="contratoForm.ocupacion" placeholder="Ej: Empleado, Comerciante..." class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Domicilio para notificaciones</label>
+            <input v-model="contratoForm.notificaciones" placeholder="Dirección completa" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Corresponsable / Aval</label>
+            <input v-model="contratoForm.corresponsable" placeholder="Nombre del corresponsable" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Instalaciones entregadas</label>
+            <textarea v-model="contratoForm.instalaciones" placeholder="Ej: estufa, boiler, ventilador de techo..." rows="2" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm"></textarea>
+          </div>
+          <p class="text-xs text-gray-500">⚠️ Los campos vacíos usarán los datos guardados en el departamento/inquilino o dejarán espacio en blanco.</p>
+        </div>
+        <div class="flex gap-2 justify-end mt-4">
+          <button @click="showContrato = false" class="px-4 py-2 bg-gray-700 rounded-lg text-sm">Cancelar</button>
+          <button @click="descargarContrato" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium">⬇️ Descargar Contrato</button>
+        </div>
       </div>
     </div>
 
@@ -190,7 +240,56 @@ const notas = ref([])
 const activeDepto = ref(null)
 const newNota = ref('')
 
-const emptyForm = { idUbicacion: '', clave: '', descripcion: '', cuartos: 0, banos: 0, estacionamiento: 0, extras: '', montoRenta: 0, cuotaAgua: 0, contratoLuzId: null, diaVencimiento: 1, descripcionPublicacion: '', inquilinoCorreo: '' }
+const emptyForm = { idUbicacion: '', clave: '', descripcion: '', cuartos: 0, banos: 0, estacionamiento: 0, extras: '', montoRenta: 0, cuotaAgua: 0, contratoLuzId: null, diaVencimiento: 1, descripcionPublicacion: '', inquilinoCorreo: '', maxOcupantes: 0, instalaciones: '' }
+
+// === CONTRATO ===
+const showContrato = ref(false)
+const contratoDepto = ref(null)
+const contratoForm = ref({})
+
+function openContrato(d) {
+  contratoDepto.value = d
+  const hoy = new Date()
+  const fin = new Date(hoy)
+  fin.setMonth(fin.getMonth() + 6)
+  const fmt = d => d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')
+  contratoForm.value = {
+    fechaIni: fmt(hoy),
+    fechaFin: fmt(fin),
+    corresponsable: d.inquilino?.corresponsable || '',
+    instalaciones: d.instalaciones || '',
+    ocupacion: d.inquilino?.ocupacion || '',
+    notificaciones: d.inquilino?.domicilioNotificaciones || '',
+    maxOcupantes: d.maxOcupantes || 0
+  }
+  showContrato.value = true
+}
+
+async function descargarContrato() {
+  const d = contratoDepto.value
+  const f = contratoForm.value
+  const params = new URLSearchParams()
+  if (f.fechaIni) params.set('fechaIni', f.fechaIni)
+  if (f.fechaFin) params.set('fechaFin', f.fechaFin)
+  if (f.corresponsable) params.set('corresponsable', f.corresponsable)
+  if (f.instalaciones) params.set('instalaciones', f.instalaciones)
+  if (f.ocupacion) params.set('ocupacion', f.ocupacion)
+  if (f.notificaciones) params.set('notificaciones', f.notificaciones)
+  if (f.maxOcupantes) params.set('maxOcupantes', f.maxOcupantes)
+  try {
+    const res = await api.get(`/contratos/arrendamiento/${d.id}?${params}`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/rtf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Contrato_${d.clave}_${new Date().toISOString().slice(0,10)}.rtf`
+    a.click()
+    URL.revokeObjectURL(url)
+    showContrato.value = false
+    success('Contrato generado.')
+  } catch (e) {
+    toastError('Error al generar contrato: ' + (e.response?.data || e.message))
+  }
+}
 const form = ref({ ...emptyForm })
 
 async function load() {

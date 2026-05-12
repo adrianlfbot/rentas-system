@@ -16,13 +16,13 @@ public class UsuariosController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
-        Ok(await _db.Usuarios.Select(u => new { u.Correo, u.Tipo, u.Telefono, u.INE, u.FechaUltimoAcceso }).ToListAsync());
+        Ok(await _db.Usuarios.Select(u => new { u.Correo, u.Tipo, u.Telefono, u.INE, u.FechaUltimoAcceso, u.Ocupacion, u.Corresponsable, u.DomicilioNotificaciones }).ToListAsync());
 
     [HttpGet("{correo}")]
     public async Task<IActionResult> Get(string correo)
     {
         var u = await _db.Usuarios.FindAsync(correo);
-        return u == null ? NotFound() : Ok(new { u.Correo, u.Tipo, u.Telefono, u.INE, u.FechaUltimoAcceso });
+        return u == null ? NotFound() : Ok(new { u.Correo, u.Tipo, u.Telefono, u.INE, u.FechaUltimoAcceso, u.Ocupacion, u.Corresponsable, u.DomicilioNotificaciones });
     }
 
     [HttpPost]
@@ -42,6 +42,9 @@ public class UsuariosController : ControllerBase
         u.Tipo = dto.Tipo;
         u.Telefono = dto.Telefono;
         u.INE = dto.INE;
+        u.Ocupacion = dto.Ocupacion;
+        u.Corresponsable = dto.Corresponsable;
+        u.DomicilioNotificaciones = dto.DomicilioNotificaciones;
         if (!string.IsNullOrEmpty(dto.Password))
             u.Password = BCrypt.Net.BCrypt.HashPassword(dto.Password);
         await _db.SaveChangesAsync();

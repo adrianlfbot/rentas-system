@@ -16,6 +16,8 @@ public class Departamento
     public int DiaVencimiento { get; set; } = 1;
     public string? DescripcionPublicacion { get; set; }
     public string? InquilinoCorreo { get; set; }
+    public int MaxOcupantes { get; set; } = 0;
+    public string? Instalaciones { get; set; }
 
     // Navigation
     public Ubicacion? Ubicacion { get; set; }
